@@ -1,8 +1,8 @@
 #![deny(clippy::all)]
-#![forbid(unsafe_code)]
 
-use fuwa::{Colors, Fuwa};
-use pixels::{Error};
+use fuwa::*;
+use glam::*;
+use pixels::Error;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -11,6 +11,8 @@ use winit_input_helper::WinitInputHelper;
 
 const WIDTH: u32 = 800;
 const HEIGHT: u32 = 600;
+
+const ROT_SPEED: f32 = 0.1;
 
 fn main() -> Result<(), Error> {
     let event_loop = EventLoop::new();
@@ -27,28 +29,17 @@ fn main() -> Result<(), Error> {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, &window);
 
+    let lines = cube_lines();
+    let indices = cube_indices();
+    let cube_verts = cube(1.0);
+
+    let mut offset = Vec3::new(0., 0., 2.);
+
+    let mut rot_x = 0.0;
+    let mut rot_y = 0.0;
+    let mut rot_z = 0.0;
+
     event_loop.run(move |event, _, control_flow| {
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
-            fuwa.clear(&Colors::BLACK);
-
-            fuwa.draw_line(13, 20, 80, 40, &Colors::WHITE);
-            fuwa.draw_line(20, 13, 40, 80, &Colors::RED);
-            fuwa.draw_line(80, 40, 13, 20, &Colors::RED);
-
-            fuwa.draw_line(0, 0, WIDTH, HEIGHT, &Colors::GREEN);
-
-            if fuwa
-                .render()
-                .map_err(|e| println!("render() failed: {}", e))
-                .is_err()
-            {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-        }
-
-        // Handle input events
         if input.update(&event) {
             // Close events
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
@@ -56,13 +47,73 @@ fn main() -> Result<(), Error> {
                 return;
             }
 
+            //x
+            if input.key_held(VirtualKeyCode::W) {
+                rot_x += ROT_SPEED;
+            } else if input.key_held(VirtualKeyCode::S) {
+                rot_x -= ROT_SPEED;
+            }
+
+            //y
+            if input.key_held(VirtualKeyCode::A) {
+                rot_y += ROT_SPEED;
+            } else if input.key_held(VirtualKeyCode::D) {
+                rot_y -= ROT_SPEED
+            }
+
+            //Z
+            if input.key_held(VirtualKeyCode::Q) {
+                rot_z += ROT_SPEED;
+            } else if input.key_held(VirtualKeyCode::E) {
+                rot_z -= ROT_SPEED
+            }
+
+            if input.key_held(VirtualKeyCode::R) {
+                *offset.z_mut() += ROT_SPEED;
+            } else if input.key_held(VirtualKeyCode::F) {
+                *offset.z_mut() -= ROT_SPEED;
+            }
+
             // Resize the window
             if let Some(size) = input.window_resized() {
                 fuwa.resize(size.width, size.height);
             }
-
-            // Update internal state and request a redraw
-            window.request_redraw();
         }
-    });
+
+        match event {
+            Event::RedrawRequested(_) => {
+                // Draw the current frame
+                fuwa.clear(&Colors::BLACK);
+
+                let rotation = Mat3::from_rotation_x(rot_x)
+                    * Mat3::from_rotation_y(rot_y)
+                    * Mat3::from_rotation_z(rot_z);
+
+                let mut active_model = cube_verts;
+
+                for vertex in active_model.iter_mut() {
+                    *vertex = rotation.mul_vec3(*vertex);
+                    *vertex += offset;
+                    fuwa.transform_screen_space_perspective(vertex);
+                }
+
+                let color = &Colors::WHITE;
+                fuwa.draw_indexed(&active_model, &indices, color);
+
+                if fuwa
+                    .render()
+                    .map_err(|e| println!("render() failed: {}", e))
+                    .is_err()
+                {
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+            }
+            Event::MainEventsCleared => {
+                // Handle input events
+                window.request_redraw();
+            }
+            _ => (),
+        }
+    })
 }
