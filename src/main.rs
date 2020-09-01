@@ -9,8 +9,8 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 800;
-const HEIGHT: u32 = 600;
+const WIDTH: u32 = 1280;
+const HEIGHT: u32 = 720;
 
 const ROT_SPEED: f32 = 0.1;
 
@@ -27,13 +27,16 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, &window);
+    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, &window);
 
     let lines = cube_lines();
     let indices = cube_indices();
     let cube_verts = cube(1.0);
 
-    let mut offset = Vec3::new(0., 0., 2.);
+    let tri = tri(1.0);
+    let tri_indices = tri_indices();
+
+    let mut offset = Vec3A::new(0., 0., 2.);
 
     let mut rot_x = 0.0;
     let mut rot_y = 0.0;
@@ -92,13 +95,21 @@ fn main() -> Result<(), Error> {
                 let mut active_model = cube_verts;
 
                 for vertex in active_model.iter_mut() {
-                    *vertex = rotation.mul_vec3(*vertex);
+                    *vertex = rotation.mul_vec3a(*vertex);
                     *vertex += offset;
                     fuwa.transform_screen_space_perspective(vertex);
                 }
 
-                let color = &Colors::WHITE;
+                let color = &Colors::GREEN;
                 fuwa.draw_indexed(&active_model, &indices, color);
+                // unsafe {
+                //     fuwa.draw_triangle(&[
+                //         *active_model.get_unchecked(0),
+                //         *active_model.get_unchecked(1),
+                //         *active_model.get_unchecked(2),
+                //     ], color);
+
+                // }
 
                 if fuwa
                     .render()
