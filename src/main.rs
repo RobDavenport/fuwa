@@ -3,6 +3,7 @@
 use fuwa::*;
 use glam::*;
 use pixels::Error;
+use rayon::prelude::*;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -27,7 +28,7 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, &window);
+    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
 
     let lines = cube_lines();
     let indices = cube_indices();
@@ -35,6 +36,7 @@ fn main() -> Result<(), Error> {
 
     let tri = tri(1.0);
     let tri_indices = tri_indices();
+    let plane_indices = plane_indices();
 
     let mut offset = Vec3A::new(0., 0., 2.);
 
@@ -94,14 +96,15 @@ fn main() -> Result<(), Error> {
 
                 let mut active_model = cube_verts;
 
-                for vertex in active_model.iter_mut() {
+                active_model.par_iter_mut().for_each(|vertex| {
                     *vertex = rotation.mul_vec3a(*vertex);
                     *vertex += offset;
                     fuwa.transform_screen_space_perspective(vertex);
-                }
+                });
 
                 let color = &Colors::GREEN;
                 fuwa.draw_indexed(&active_model, &indices, color);
+
                 // unsafe {
                 //     fuwa.draw_triangle(&[
                 //         *active_model.get_unchecked(0),
