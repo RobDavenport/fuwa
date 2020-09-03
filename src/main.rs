@@ -30,7 +30,7 @@ fn main() -> Result<(), Error> {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
 
-    fuwa.upload_texture(load_texture("box.png".to_string()));
+    let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
 
     let lines = cube_lines();
     let indices = cube_indices();

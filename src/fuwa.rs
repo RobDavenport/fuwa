@@ -458,10 +458,9 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                             let l1 = w1 / weight_sum;
                             let l2 = w2 / weight_sum;
 
-                            let pz =
-                                Vec4::splat(points[0].z())
-                                    + (l1 * (points[1].z() - points[0].z()))
-                                    + (l2 * (points[2].z() - points[0].z()));
+                            let pz = Vec4::splat(points[0].z())
+                                + (l1 * (points[1].z() - points[0].z()))
+                                + (l2 * (points[2].z() - points[0].z()));
 
                             if let Some(depth_pass) =
                                 (*ptr.0).try_set_depth_simd(x, y, pz, pixel_mask)
