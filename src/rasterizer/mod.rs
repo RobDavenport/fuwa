@@ -1,5 +1,5 @@
 mod edge;
-pub use edge::*;
+pub(crate) use edge::*;
 
 use crate::Fuwa;
 

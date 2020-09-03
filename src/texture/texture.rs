@@ -7,14 +7,14 @@ pub enum TextureFormat {
 }
 
 pub struct Texture {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     pub format: TextureFormat,
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Texture {
-    fn new(data: Vec<u8>, format: TextureFormat, width: u32, height: u32) -> Self {
+    pub fn new(data: Vec<u8>, format: TextureFormat, width: u32, height: u32) -> Self {
         Self {
             data,
             width,

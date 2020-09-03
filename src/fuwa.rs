@@ -25,7 +25,7 @@ pub struct Fuwa<W: HasRawWindowHandle> {
 }
 
 lazy_static! {
-    static ref RENDER_MASK: Vec4 = Vec4::new(0., 0., 0., 0.);
+    static ref RENDER_MASK: Vec4 = Vec4::splat(0.);
     static ref THREAD_COLOR: [&'static [u8; 4]; 8] = [
         &super::Colors::RED,
         &super::Colors::GREEN,
@@ -223,7 +223,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 .as_mut_ptr();
 
             let insert = mask.select(
-                vec4(color_float, color_float, color_float, color_float),
+                Vec4::splat(color_float),
                 vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
             );
 
@@ -244,71 +244,6 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 .get_frame()
                 .get_unchecked_mut(index..index + 4)
                 .copy_from_slice(color);
-        }
-    }
-
-    pub fn draw_triangle(&mut self, points: &[Vec3A; 3], color: &[u8; 4]) {
-        let mut min_x = points[0].x();
-        let mut min_y = points[0].y();
-
-        let mut max_x = min_x;
-        let mut max_y = min_y;
-
-        for point in points.iter().skip(1) {
-            let test_x = point.x();
-            let test_y = point.y();
-
-            if test_x < min_x {
-                min_x = test_x
-            } else if test_x > max_x {
-                max_x = test_x;
-            }
-
-            if test_y < min_y {
-                min_y = test_y
-            } else if test_y > max_y {
-                max_y = test_y
-            }
-        }
-
-        //clamp to view
-        if min_x < 0. {
-            min_x = 0.;
-        }
-
-        if min_y < 0. {
-            min_y = 0.;
-        }
-
-        if max_x > self.width as f32 - 1. {
-            max_x = self.width as f32 - 1.;
-        }
-
-        if max_y > self.height as f32 - 1. {
-            max_y = self.height as f32 - 1.;
-        }
-
-        if is_degenerate(points, Vec2::new(points[0].x(), points[0].y())) {
-            return;
-        }
-
-        unsafe {
-            let self_ptr = self.get_self_ptr();
-            (min_y.floor() as u32..=max_y.ceil() as u32)
-                .into_par_iter()
-                .for_each(|y| {
-                    (min_x.floor() as u32..=max_x.ceil() as u32)
-                        .into_par_iter()
-                        .for_each(|x| {
-                            let barycentric = barycentric(points, Vec2::new(x as f32, y as f32));
-                            if !(barycentric.x() < 0.
-                                || barycentric.y() < 0.
-                                || barycentric.z() < 0.)
-                            {
-                                (*self_ptr.0).set_pixel_unchecked(x, y, color);
-                            }
-                        });
-                });
         }
     }
 
@@ -524,7 +459,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                             let l2 = w2 / weight_sum;
 
                             let pz =
-                                vec4(points[0].z(), points[0].z(), points[0].z(), points[0].z())
+                                Vec4::splat(points[0].z())
                                     + (l1 * (points[1].z() - points[0].z()))
                                     + (l2 * (points[2].z() - points[0].z()));
 
@@ -655,36 +590,12 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 }
 
-fn barycentric(points: &[Vec3A; 3], test: Vec2) -> Vec3A {
-    let u = calc_barycentric(points, test);
-    Vec3A::new(1. - (u.x() + u.y()) / u.z(), u.y() / u.z(), u.x() / u.z())
-}
-
-fn is_degenerate(points: &[Vec3A; 3], test: Vec2) -> bool {
-    f32::abs(calc_barycentric(points, test).z()) < 1.
-}
-
 fn orient_2d(a: &Vec3A, b: &Vec3A, point: &Vec3A) -> f32 {
     (b.x() - a.x()) * (point.y() - a.y()) - (b.y() - a.y()) * (point.x() - a.x())
 }
 
-fn calc_barycentric(points: &[Vec3A; 3], test: Vec2) -> Vec3A {
-    let v1 = Vec3A::new(
-        points[2].x() - points[0].x(),
-        points[1].x() - points[0].x(),
-        points[0].x() - test.x(),
-    );
-    let v2 = Vec3A::new(
-        points[2].y() - points[0].y(),
-        points[1].y() - points[0].y(),
-        points[0].y() - test.y(),
-    );
-
-    v1.cross(v2)
-}
-
 unsafe fn vec4_from_pixel_ptr(ptr: *const f32) -> Vec4 {
-    use std::ptr::slice_from_raw_parts;;
+    use std::ptr::slice_from_raw_parts;
     let data = slice_from_raw_parts(ptr, 4);
-    vec4((*data)[0], (*data)[1], (*data)[2], (*data)[3])
+    Vec4::from_slice_unaligned(&*data)
 }

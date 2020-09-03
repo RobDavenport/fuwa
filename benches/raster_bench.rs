@@ -56,11 +56,11 @@ fn criterion_benchmark(c: &mut Criterion) {
     //     });
     // });
 
-    c.bench_function("clear_depth_buffer", |b| {
-        b.iter(|| {
-            fuwa.clear_depth_buffer();
-        })
-    });
+    // c.bench_function("clear_depth_buffer", |b| {
+    //     b.iter(|| {
+    //         fuwa.clear_depth_buffer();
+    //     })
+    // });
 
     // c.bench_function("render", |b| {
     //     b.iter(|| {
@@ -75,14 +75,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     //     });
     // });
 
-    // c.bench_function("draw_triangle", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_triangle(black_box(&draw_tri), black_box(&white));
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
     // c.bench_function("draw_triangle_fast", |b| {
     //     b.iter(|| {
     //         fuwa.clear(black_box(&black));
@@ -91,13 +83,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     //     })
     // });
 
-    // c.bench_function("draw_triangle_parallel", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_triangle_parallel(black_box(&draw_tri), black_box(&white));
-    //         fuwa.render().unwrap();
-    //     })
-    // });
+    c.bench_function("draw_triangle_parallel", |b| {
+        b.iter(|| {
+            fuwa.clear(black_box(&black));
+            fuwa.draw_triangle_parallel(black_box(&draw_tri), black_box(&white));
+            fuwa.render().unwrap();
+        })
+    });
 
     // c.bench_function("draw_indexed cube", |b| {
     //     b.iter(|| {

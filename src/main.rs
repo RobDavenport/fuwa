@@ -21,7 +21,7 @@ fn main() -> Result<(), Error> {
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
-            .with_title("Hello Pixels")
+            .with_title("Hello FUWA")
             .with_inner_size(size)
             .with_min_inner_size(size)
             .build(&event_loop)
@@ -29,6 +29,8 @@ fn main() -> Result<(), Error> {
     };
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
+
+    fuwa.upload_texture(load_texture("box.png".to_string()));
 
     let lines = cube_lines();
     let indices = cube_indices();
@@ -142,4 +144,18 @@ fn main() -> Result<(), Error> {
             _ => (),
         }
     })
+}
+
+pub fn load_texture(path: String) -> Texture {
+    let image_bytes = std::fs::read(format!("./resources/{}", &path)).unwrap();
+    let image_data = image::load_from_memory(&image_bytes).unwrap();
+    let image_data = image_data.as_rgba8().unwrap();
+    let dimensions = image_data.dimensions();
+
+    Texture {
+        data: image_data.to_vec(),
+        width: dimensions.0,
+        height: dimensions.1,
+        format: TextureFormat::RGBA,
+    }
 }

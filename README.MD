@@ -23,5 +23,6 @@ https://www.youtube.com/watch?v=uehGqieEbus&list=PLqCJpWy5Fohe8ucwhksiv9hTF5sfid
 
 TODO:
 1. Split folder structure into separate modules
-1. Add texture loading / rendering
+1. Add texture / rendering
+1. Merge "Textures" resource and "Resource Generator" into a "Repository" or some other kind of grouping
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc

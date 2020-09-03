@@ -15,17 +15,19 @@ impl Edge {
         let b = v1.x() - v0.x();
         let c = (v0.x() * v1.y()) - (v0.y() * v1.x());
 
-        let origin_x = origin.x();
-        let origin_y = origin.y();
-        let x = vec4(origin_x, origin_x, origin_x, origin_x) + vec4(0., 1., 2., 3.);
-        let y = vec4(origin_y, origin_y, origin_y, origin_y);
+        let x = Vec4::splat(origin.x()) + vec4(0., 1., 2., 3.);
+        let y = Vec4::splat(origin.y());
+
+        let a_vec = Vec4::splat(a);
+        let b_vec = Vec4::splat(b);
+        let c_vec = Vec4::splat(c);
 
         (
             Self {
-                one_step_x: vec4(a, a, a, a) * Self::STEP_X as f32,
-                one_step_y: vec4(b, b, b, b) * Self::STEP_Y as f32,
+                one_step_x: a_vec * Self::STEP_X as f32,
+                one_step_y: b_vec * Self::STEP_Y as f32,
             },
-            (vec4(a, a, a, a) * x) + (vec4(b, b, b, b) * y) + vec4(c, c, c, c),
+            a_vec * x + b_vec * y + c_vec,
         )
     }
 }
