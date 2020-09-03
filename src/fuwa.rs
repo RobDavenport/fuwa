@@ -1,5 +1,9 @@
-use super::Edge;
+use super::handle::Handle;
+use super::rasterizer::Edge;
+use super::HandleGenerator;
+use super::Texture;
 use glam::*;
+use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
 use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
@@ -10,10 +14,14 @@ use std::marker::{Send, Sync};
 pub struct Fuwa<W: HasRawWindowHandle> {
     pub width: u32,
     pub height: u32,
+    pub pixel_count: u32,
     pub x_factor: f32,
     pub y_factor: f32,
     pixels: Pixels<W>,
+    depth_buffer: Vec<f32>,
     pub raster_par_count: usize,
+    pub(crate) textures: HashMap<Handle<Texture>, Texture>,
+    pub(crate) texture_generator: HandleGenerator<Texture>,
 }
 
 lazy_static! {
@@ -52,9 +60,13 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         Self {
             width,
             height,
+            pixel_count: width * height,
+            depth_buffer: vec![f32::INFINITY; (width * height) as usize],
             raster_par_count,
             x_factor: width as f32 * 0.5,
             y_factor: height as f32 * 0.5,
+            textures: HashMap::new(),
+            texture_generator: HandleGenerator::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
                 .enable_vsync(vsync)
                 .request_adapter_options(RequestAdapterOptions {
@@ -89,19 +101,105 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             })
     }
 
+    pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
+        unsafe {
+            let prev = self
+                .depth_buffer
+                .get_unchecked_mut((x + y * self.width) as usize);
+            if depth < *prev {
+                *prev = depth;
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    pub fn try_set_depth_simd(
+        &mut self,
+        x: u32,
+        y: u32,
+        depths: Vec4,
+        mask: Vec4Mask,
+    ) -> Option<Vec4Mask> {
+        unsafe {
+            let index = (x + y * self.width) as usize;
+            let values = self
+                .depth_buffer
+                .get_unchecked_mut(index..index + Edge::STEP_X);
+
+            let prev_depths = vec4(values[0], values[1], values[2], values[3]);
+            let result = depths.cmplt(prev_depths) & mask;
+
+            if result.any() {
+                let update = result.select(depths, prev_depths);
+                values.copy_from_slice(&[update[0], update[1], update[2], update[3]]);
+                Some(result)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn clear_depth_buffer(&mut self) {
+        self.depth_buffer.par_iter_mut().for_each(|x| {
+            *x = f32::INFINITY;
+        });
+    }
+
     pub fn render(&mut self) -> Result<(), Error> {
+        self.pixels.render()
+    }
+
+    pub fn render_depth_buffer(&mut self) -> Result<(), Error> {
+        let pixel_iter = self.pixels.get_frame().par_chunks_exact_mut(4);
+        let mut depth_max = f32::NEG_INFINITY;
+        let mut depth_min = f32::INFINITY;
+
+        self.depth_buffer.iter().for_each(|x| {
+            if x.is_finite() {
+                if *x > depth_max {
+                    depth_max = *x
+                } else if *x < depth_min {
+                    depth_min = *x
+                }
+            }
+        });
+
+        let range = depth_max - depth_min;
+        let depth_iter = self.depth_buffer.par_iter_mut();
+
+        if range != 0. {
+            depth_iter.for_each(|x| {
+                *x = u8::MAX as f32 - ((*x - depth_min) / range * u8::MAX as f32);
+            });
+        } else {
+            depth_iter.for_each(|x| {
+                if x.is_finite() {
+                    *x = u8::MAX as f32;
+                }
+            });
+        }
+
+        let depth_iter = self.depth_buffer.par_iter_mut();
+        pixel_iter.zip(depth_iter).for_each(|(pixel, depth)| {
+            let color = *depth as u8;
+            pixel.copy_from_slice(&[color, color, color, 0xFF]);
+        });
+
         self.pixels.render()
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.pixels.resize(width, height);
+        self.pixel_count = width * height;
     }
 
     pub fn set_pixel(&mut self, x: u32, y: u32, color: &[u8; 4]) {
         let index = self.pos_to_index(x, y);
 
         assert!(
-            (index as u32) < self.width * self.height * 4,
+            (index as u32) < self.pixel_count * 4,
             "Pixel drawn out of bounds!"
         );
 
@@ -269,6 +367,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         let b20 = points[0].x() - points[2].x();
 
         let p = Vec3A::new(min_x, min_y, 0.0);
+
         let mut w0_row = orient_2d(&points[1], &points[2], &p);
         let mut w1_row = orient_2d(&points[2], &points[0], &p);
         let mut w2_row = orient_2d(&points[0], &points[1], &p);
@@ -282,7 +381,17 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
 
                 (min_x as u32..max_x as u32).for_each(|x| {
                     if w0.is_sign_negative() && w1.is_sign_negative() && w2.is_sign_negative() {
-                        (*self_ptr.0).set_pixel_unchecked(x, y, color);
+                        let weight_sum = w0 + w1 + w2;
+                        let l1 = w1 / weight_sum;
+                        let l2 = w2 / weight_sum;
+
+                        let pz = points[0].z()
+                            + (l1 * (points[1].z() - points[0].z()))
+                            + (l2 * (points[2].z() - points[0].z()));
+
+                        if self.try_set_depth(x, y, pz) {
+                            (*self_ptr.0).set_pixel_unchecked(x, y, color);
+                        }
                     }
 
                     w0 += a12;
@@ -364,6 +473,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 .for_each(|thread_offset| {
                     Self::rasterize_triangle(
                         &self_ptr,
+                        points,
                         (e12, e20, e01),
                         (min_x as u32, min_y as u32),
                         (max_x as u32, max_y as u32),
@@ -376,6 +486,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
 
     unsafe fn rasterize_triangle(
         ptr: &FuwaPtr<W>,
+        points: &[Vec3A; 3],
         ((e12, mut w0_row), (e20, mut w1_row), (e01, mut w2_row)): (
             (Edge, Vec4),
             (Edge, Vec4),
@@ -408,7 +519,20 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                             & w2.cmple(*RENDER_MASK);
 
                         if pixel_mask.any() {
-                            (*ptr.0).set_pixels_unchecked(x as u32, y, pixel_mask, color);
+                            let weight_sum = w0 + w1 + w2;
+                            let l1 = w1 / weight_sum;
+                            let l2 = w2 / weight_sum;
+
+                            let pz =
+                                vec4(points[0].z(), points[0].z(), points[0].z(), points[0].z())
+                                    + (l1 * (points[1].z() - points[0].z()))
+                                    + (l2 * (points[2].z() - points[0].z()));
+
+                            if let Some(depth_pass) =
+                                (*ptr.0).try_set_depth_simd(x, y, pz, pixel_mask)
+                            {
+                                (*ptr.0).set_pixels_unchecked(x as u32, y, depth_pass, color);
+                            }
                         }
 
                         (0..par_count).for_each(|_| {
@@ -529,60 +653,6 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 })
         }
     }
-}
-
-pub fn cube(size: f32) -> [Vec3A; 8] {
-    let side = size * 0.5;
-    [
-        Vec3A::new(-side, -side, -side),
-        Vec3A::new(side, -side, -side),
-        Vec3A::new(-side, side, -side),
-        Vec3A::new(side, side, -side),
-        Vec3A::new(-side, -side, side),
-        Vec3A::new(side, -side, side),
-        Vec3A::new(-side, side, side),
-        Vec3A::new(side, side, side),
-    ]
-}
-
-pub fn tri(size: f32) -> [Vec3A; 3] {
-    let side = size * 0.5;
-    [
-        Vec3A::new(-side, -side, 0.),
-        Vec3A::new(side, -side, 0.),
-        Vec3A::new(-side, side, 0.),
-    ]
-}
-
-pub fn plane(size: f32) -> [Vec3A; 4] {
-    let side = size * 0.5;
-    [
-        Vec3A::new(-side, -side, 0.),
-        Vec3A::new(side, -side, 0.),
-        Vec3A::new(-side, side, 0.),
-        Vec3A::new(side, side, 0.),
-    ]
-}
-
-pub fn tri_indices() -> [u32; 3] {
-    [0, 1, 2]
-}
-
-pub fn plane_indices() -> [u32; 6] {
-    [0, 1, 2, 2, 1, 3]
-}
-
-pub fn cube_lines() -> [u32; 24] {
-    [
-        0, 1, 1, 3, 3, 2, 2, 0, 0, 4, 1, 5, 3, 7, 2, 6, 4, 5, 5, 7, 7, 6, 6, 4,
-    ]
-}
-
-pub fn cube_indices() -> [u32; 36] {
-    [
-        0, 1, 2, 2, 1, 3, 1, 5, 3, 3, 5, 7, 2, 3, 6, 3, 7, 6, 4, 7, 5, 4, 6, 7, 0, 2, 4, 2, 6, 4,
-        0, 4, 1, 1, 4, 5,
-    ]
 }
 
 fn barycentric(points: &[Vec3A; 3], test: Vec2) -> Vec3A {

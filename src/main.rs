@@ -35,6 +35,7 @@ fn main() -> Result<(), Error> {
     let cube_verts = cube(1.0);
 
     let tri = tri(1.0);
+    let plane = plane(1.);
     let tri_indices = tri_indices();
     let plane_indices = plane_indices();
 
@@ -89,6 +90,7 @@ fn main() -> Result<(), Error> {
             Event::RedrawRequested(_) => {
                 // Draw the current frame
                 fuwa.clear(&Colors::BLACK);
+                fuwa.clear_depth_buffer();
 
                 let rotation = Mat3::from_rotation_x(rot_x)
                     * Mat3::from_rotation_y(rot_y)
@@ -102,8 +104,17 @@ fn main() -> Result<(), Error> {
                     fuwa.transform_screen_space_perspective(vertex);
                 });
 
-                let color = &Colors::GREEN;
-                fuwa.draw_indexed(&active_model, &indices, color);
+                let mut second_model = cube_verts;
+                second_model.par_iter_mut().for_each(|vertex| {
+                    *vertex = rotation.mul_vec3a(*vertex);
+                    *vertex += offset;
+                    *vertex.x_mut() = -vertex.x();
+                    fuwa.transform_screen_space_perspective(vertex);
+                });
+
+                //let color = &Colors::GREEN;
+                fuwa.draw_indexed_parallel(&active_model, &indices, &Colors::WHITE);
+                fuwa.draw_indexed_parallel(&second_model, &indices, &Colors::GREEN);
 
                 // unsafe {
                 //     fuwa.draw_triangle(&[
@@ -116,6 +127,7 @@ fn main() -> Result<(), Error> {
 
                 if fuwa
                     .render()
+                    //.render_depth_buffer()
                     .map_err(|e| println!("render() failed: {}", e))
                     .is_err()
                 {

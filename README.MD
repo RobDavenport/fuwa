@@ -22,7 +22,6 @@ https://github.com/ssloy/tinyrenderer/wiki
 https://www.youtube.com/watch?v=uehGqieEbus&list=PLqCJpWy5Fohe8ucwhksiv9hTF5sfid8lA
 
 TODO:
-1. Try MINIFB instead of Pixels
 1. Split folder structure into separate modules
 1. Add texture loading / rendering
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
