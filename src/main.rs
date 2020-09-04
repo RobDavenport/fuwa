@@ -36,7 +36,7 @@ fn main() -> Result<(), Error> {
     let indices = cube_indices();
     let cube_verts = cube(1.0);
 
-    let tri = tri(1.0);
+    let tri = tri(1.);
     let plane = plane(1.);
     let tri_indices = tri_indices();
     let plane_indices = plane_indices();
@@ -99,24 +99,45 @@ fn main() -> Result<(), Error> {
                     * Mat3::from_rotation_z(rot_z);
 
                 let mut active_model = cube_verts;
+                let mut active_indices = cube_indices();
 
                 active_model.par_iter_mut().for_each(|vertex| {
                     *vertex = rotation.mul_vec3a(*vertex);
                     *vertex += offset;
+                });
+
+                let cull_flags = active_indices
+                    .par_chunks_exact(3)
+                    .map(|triangle| {
+                        is_backfacing_points(&[
+                            active_model[triangle[0] as usize],
+                            active_model[triangle[1] as usize],
+                            active_model[triangle[2] as usize],
+                        ])
+                    })
+                    .collect::<Vec<_>>();
+
+                active_model.par_iter_mut().for_each(|vertex| {
                     fuwa.transform_screen_space_perspective(vertex);
                 });
 
-                let mut second_model = cube_verts;
-                second_model.par_iter_mut().for_each(|vertex| {
-                    *vertex = rotation.mul_vec3a(*vertex);
-                    *vertex += offset;
-                    *vertex.x_mut() = -vertex.x();
-                    fuwa.transform_screen_space_perspective(vertex);
-                });
+                // let mut second_model = cube_verts;
+                // second_model.par_iter_mut().for_each(|vertex| {
+                //     *vertex = rotation.mul_vec3a(*vertex);
+                //     *vertex += offset;
+                //     *vertex.x_mut() = -vertex.x();
+                //     fuwa.transform_screen_space_perspective(vertex);
+                // });
 
                 //let color = &Colors::GREEN;
-                fuwa.draw_indexed_parallel(&active_model, &indices, &Colors::WHITE);
-                fuwa.draw_indexed_parallel(&second_model, &indices, &Colors::GREEN);
+                //fuwa.draw_indexed(&plane, &plane_indices, &Colors::WHITE);
+                fuwa.draw_indexed_parallel(
+                    &active_model,
+                    &active_indices,
+                    &cull_flags,
+                    &Colors::WHITE,
+                );
+                //fuwa.draw_indexed_parallel(&second_model, &indices, &Colors::GREEN);
 
                 // unsafe {
                 //     fuwa.draw_triangle(&[

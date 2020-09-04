@@ -75,13 +75,25 @@ fn criterion_benchmark(c: &mut Criterion) {
     //     });
     // });
 
-    // c.bench_function("draw_triangle_fast", |b| {
+    // c.bench_function("calculate raster bb", |b| {
+
+    //     let points = &[
+    //         cube_verts[cube_indices[0] as usize],
+    //         cube_verts[cube_indices[1] as usize],
+    //         cube_verts[cube_indices[2] as usize]];
+
     //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_triangle_fast(black_box(&draw_tri), black_box(&white));
-    //         fuwa.render().unwrap();
-    //     })
+    //         fuwa.calculate_raster_bb(black_box(points));
+    //     });
     // });
+
+    c.bench_function("draw_triangle_fast", |b| {
+        b.iter(|| {
+            fuwa.clear(black_box(&black));
+            fuwa.draw_triangle_fast(black_box(&draw_tri), black_box(&white));
+            fuwa.render().unwrap();
+        })
+    });
 
     c.bench_function("draw_triangle_parallel", |b| {
         b.iter(|| {
@@ -91,29 +103,29 @@ fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    // c.bench_function("draw_indexed cube", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_indexed(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
+    c.bench_function("draw_indexed cube", |b| {
+        b.iter(|| {
+            fuwa.clear(black_box(&black));
+            fuwa.draw_indexed(
+                black_box(&draw_cube),
+                black_box(&cube_indices),
+                black_box(&white),
+            );
+            fuwa.render().unwrap();
+        })
+    });
 
-    // c.bench_function("draw_indexed cube parallel", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_indexed_parallel(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
+    c.bench_function("draw_indexed cube parallel", |b| {
+        b.iter(|| {
+            fuwa.clear(black_box(&black));
+            fuwa.draw_indexed_parallel(
+                black_box(&draw_cube),
+                black_box(&cube_indices),
+                black_box(&white),
+            );
+            fuwa.render().unwrap();
+        })
+    });
 
     // c.bench_function("transform cube", |b| {
     //     b.iter(|| {

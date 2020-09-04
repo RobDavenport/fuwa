@@ -1,7 +1,8 @@
-use super::handle::Handle;
-use super::rasterizer::Edge;
+use super::handles::Handle;
+use super::rasterization::Edge;
 use super::HandleGenerator;
 use super::Texture;
+use crate::Triangle;
 use glam::*;
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
@@ -17,7 +18,7 @@ pub struct Fuwa<W: HasRawWindowHandle> {
     pub pixel_count: u32,
     pub x_factor: f32,
     pub y_factor: f32,
-    pixels: Pixels<W>,
+    pub pixels: Pixels<W>,
     depth_buffer: Vec<f32>,
     pub raster_par_count: usize,
     pub(crate) textures: HashMap<Handle<Texture>, Texture>,
@@ -39,13 +40,13 @@ lazy_static! {
 }
 
 #[derive(Copy, Clone)]
-struct FuwaPtr<W: HasRawWindowHandle>(*mut Fuwa<W>);
+pub(crate) struct FuwaPtr<W: HasRawWindowHandle>(pub(crate) *mut Fuwa<W>);
 
 unsafe impl<W: HasRawWindowHandle> Send for FuwaPtr<W> {}
 unsafe impl<W: HasRawWindowHandle> Sync for FuwaPtr<W> {}
 
 impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
-    fn get_self_ptr(&mut self) -> FuwaPtr<W> {
+    pub(crate) fn get_self_ptr(&mut self) -> FuwaPtr<W> {
         FuwaPtr(self as *mut Self)
     }
 
@@ -206,39 +207,11 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         self.set_pixel_by_index(index, color)
     }
 
-    fn set_pixel_unchecked(&mut self, x: u32, y: u32, color: &[u8; 4]) {
-        self.set_pixel_by_index(self.pos_to_index(x, y), color)
-    }
-
-    fn set_pixels_unchecked(&mut self, x: u32, y: u32, mask: Vec4Mask, color: &[u8; 4]) {
-        let index = self.pos_to_index(x, y);
-
-        unsafe {
-            let color_float = f32::from_ne_bytes(*color);
-
-            let current_pixels_ptr = self
-                .pixels
-                .get_frame()
-                .get_unchecked_mut(index..index + 4 * Edge::STEP_X)
-                .as_mut_ptr();
-
-            let insert = mask.select(
-                Vec4::splat(color_float),
-                vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
-            );
-
-            current_pixels_ptr.copy_from(
-                insert.as_ref().as_ptr() as *const u8,
-                (16 - (x.saturating_sub(self.width - Edge::STEP_X as u32) << 2)) as usize,
-            );
-        };
-    }
-
-    fn pos_to_index(&self, x: u32, y: u32) -> usize {
+    pub(crate) fn pos_to_index(&self, x: u32, y: u32) -> usize {
         4 * (x + (y * self.width)) as usize
     }
 
-    fn set_pixel_by_index(&mut self, index: usize, color: &[u8; 4]) {
+    pub(crate) fn set_pixel_by_index(&mut self, index: usize, color: &[u8; 4]) {
         unsafe {
             self.pixels
                 .get_frame()
@@ -247,242 +220,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn draw_triangle_fast(&mut self, points: &[Vec3A; 3], color: &[u8; 4]) {
-        let mut min_x = points[0].x();
-        let mut min_y = points[0].y();
-
-        let mut max_x = min_x;
-        let mut max_y = min_y;
-
-        for point in points.iter().skip(1) {
-            let test_x = point.x();
-            let test_y = point.y();
-
-            if test_x < min_x {
-                min_x = test_x
-            } else if test_x > max_x {
-                max_x = test_x;
-            }
-
-            if test_y < min_y {
-                min_y = test_y
-            } else if test_y > max_y {
-                max_y = test_y
-            }
-        }
-
-        //clamp to view
-        if min_x < 0. {
-            min_x = 0.;
-        }
-
-        if min_y < 0. {
-            min_y = 0.;
-        }
-
-        if max_x >= self.width as f32 {
-            max_x = self.width as f32 - 1.;
-        }
-
-        if max_y >= self.height as f32 {
-            max_y = self.height as f32 - 1.;
-        }
-
-        min_x = min_x.floor();
-        min_y = min_y.floor();
-        max_x = max_x.ceil();
-        max_y = max_y.ceil();
-
-        let a01 = points[0].y() - points[1].y();
-        let a12 = points[1].y() - points[2].y();
-        let a20 = points[2].y() - points[0].y();
-
-        let b01 = points[1].x() - points[0].x();
-        let b12 = points[2].x() - points[1].x();
-        let b20 = points[0].x() - points[2].x();
-
-        let p = Vec3A::new(min_x, min_y, 0.0);
-
-        let mut w0_row = orient_2d(&points[1], &points[2], &p);
-        let mut w1_row = orient_2d(&points[2], &points[0], &p);
-        let mut w2_row = orient_2d(&points[0], &points[1], &p);
-
-        let self_ptr = self.get_self_ptr();
-        unsafe {
-            (min_y as u32..max_y as u32).for_each(|y| {
-                let mut w0 = w0_row;
-                let mut w1 = w1_row;
-                let mut w2 = w2_row;
-
-                (min_x as u32..max_x as u32).for_each(|x| {
-                    if w0.is_sign_negative() && w1.is_sign_negative() && w2.is_sign_negative() {
-                        let weight_sum = w0 + w1 + w2;
-                        let l1 = w1 / weight_sum;
-                        let l2 = w2 / weight_sum;
-
-                        let pz = points[0].z()
-                            + (l1 * (points[1].z() - points[0].z()))
-                            + (l2 * (points[2].z() - points[0].z()));
-
-                        if self.try_set_depth(x, y, pz) {
-                            (*self_ptr.0).set_pixel_unchecked(x, y, color);
-                        }
-                    }
-
-                    w0 += a12;
-                    w1 += a20;
-                    w2 += a01;
-                });
-
-                w0_row += b12;
-                w1_row += b20;
-                w2_row += b01;
-            });
-        }
-    }
-
-    pub fn draw_triangle_parallel(&mut self, points: &[Vec3A; 3], color: &[u8; 4]) {
-        let mut min_x = points[0].x();
-        let mut min_y = points[0].y();
-
-        let mut max_x = min_x;
-        let mut max_y = min_y;
-
-        for point in points.iter().skip(1) {
-            let test_x = point.x();
-            let test_y = point.y();
-
-            if test_x < min_x {
-                min_x = test_x
-            } else if test_x > max_x {
-                max_x = test_x;
-            }
-
-            if test_y < min_y {
-                min_y = test_y
-            } else if test_y > max_y {
-                max_y = test_y
-            }
-        }
-
-        //clamp to view
-        if min_x < 0. {
-            min_x = 0.;
-        }
-
-        if min_y < 0. {
-            min_y = 0.;
-        }
-
-        if max_x >= self.width as f32 {
-            max_x = self.width as f32 - 1.;
-        }
-
-        if max_y >= self.height as f32 {
-            max_y = self.height as f32 - 1.;
-        }
-
-        min_x = min_x.floor();
-        min_y = min_y.floor();
-        max_x = max_x.ceil();
-        max_y = max_y.ceil();
-
-        let self_ptr = self.get_self_ptr();
-
-        let p = Vec3A::new(min_x as f32, min_y as f32, 0.0);
-        let e12 = Edge::init(&points[1], &points[2], &p);
-        let e20 = Edge::init(&points[2], &points[0], &p);
-        let e01 = Edge::init(&points[0], &points[1], &p);
-
-        unsafe {
-            // Self::rasterize_triangle(
-            //     &self_ptr,
-            //     (e12, e20, e01),
-            //     (start_x as u32, start_y as u32),
-            //     (end_x as u32, end_y as u32),
-            //     (2, 4),
-            //     color,
-            // );
-            (0..self.raster_par_count)
-                .into_par_iter()
-                .for_each(|thread_offset| {
-                    Self::rasterize_triangle(
-                        &self_ptr,
-                        points,
-                        (e12, e20, e01),
-                        (min_x as u32, min_y as u32),
-                        (max_x as u32, max_y as u32),
-                        (thread_offset, self.raster_par_count),
-                        color,
-                    );
-                });
-        }
-    }
-
-    unsafe fn rasterize_triangle(
-        ptr: &FuwaPtr<W>,
-        points: &[Vec3A; 3],
-        ((e12, mut w0_row), (e20, mut w1_row), (e01, mut w2_row)): (
-            (Edge, Vec4),
-            (Edge, Vec4),
-            (Edge, Vec4),
-        ),
-        (start_x, start_y): (u32, u32),
-        (end_x, end_y): (u32, u32),
-        (par_offset, par_count): (usize, usize),
-        color: &[u8; 4],
-    ) {
-        (start_y as u32..end_y as u32)
-            .step_by(Edge::STEP_Y as usize)
-            .for_each(|y| {
-                let mut w0 = w0_row;
-                let mut w1 = w1_row;
-                let mut w2 = w2_row;
-
-                (0..par_offset).for_each(|_| {
-                    w0 += e12.one_step_x;
-                    w1 += e20.one_step_x;
-                    w2 += e01.one_step_x;
-                });
-
-                (start_x as u32..end_x as u32)
-                    .skip(par_offset as usize * Edge::STEP_X)
-                    .step_by(Edge::STEP_X as usize * par_count)
-                    .for_each(|x| {
-                        let pixel_mask = w0.cmple(*RENDER_MASK)
-                            & w1.cmple(*RENDER_MASK)
-                            & w2.cmple(*RENDER_MASK);
-
-                        if pixel_mask.any() {
-                            let weight_sum = w0 + w1 + w2;
-                            let l1 = w1 / weight_sum;
-                            let l2 = w2 / weight_sum;
-
-                            let pz = Vec4::splat(points[0].z())
-                                + (l1 * (points[1].z() - points[0].z()))
-                                + (l2 * (points[2].z() - points[0].z()));
-
-                            if let Some(depth_pass) =
-                                (*ptr.0).try_set_depth_simd(x, y, pz, pixel_mask)
-                            {
-                                (*ptr.0).set_pixels_unchecked(x as u32, y, depth_pass, color);
-                            }
-                        }
-
-                        (0..par_count).for_each(|_| {
-                            w0 += e12.one_step_x;
-                            w1 += e20.one_step_x;
-                            w2 += e01.one_step_x;
-                        });
-                    });
-
-                w0_row += e12.one_step_y;
-                w1_row += e20.one_step_y;
-                w2_row += e01.one_step_y;
-            });
-    }
-
-    pub fn draw_line(&mut self, mut start: Vec3A, mut end: Vec3A, color: &[u8; 4]) {
+    pub(crate) fn draw_line(&mut self, mut start: Vec3A, mut end: Vec3A, color: &[u8; 4]) {
         use std::ptr::swap;
 
         assert!(
@@ -526,7 +264,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 
     pub fn transform_screen_space_perspective(&self, point: &mut Vec3A) {
-        let z_inverse = 1. / point.z();
+        let z_inverse = point.z().recip();
         *point.x_mut() = (point.x() * z_inverse + 1.) * self.x_factor;
         *point.y_mut() = (-point.y() * z_inverse + 1.) * self.y_factor;
     }
@@ -550,21 +288,25 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32
     }
 
-    pub fn draw_indexed_parallel(&mut self, verts: &[Vec3A], indices: &[u32], color: &[u8; 4]) {
+    pub fn draw_indexed_parallel(
+        &mut self,
+        verts: &[Vec3A],
+        indices: &[u32],
+        cull_flags: &[bool],
+        color: &[u8; 4],
+    ) {
         unsafe {
             let self_ptr = self.get_self_ptr();
             indices
                 .par_chunks_exact(3)
-                //.enumerate()
-                .for_each(|tri| {
-                    (*self_ptr.0).draw_triangle_parallel(
-                        &[
-                            *verts.get_unchecked(tri[0] as usize),
-                            *verts.get_unchecked(tri[1] as usize),
-                            *verts.get_unchecked(tri[2] as usize),
-                        ],
-                        color,
-                    );
+                .enumerate()
+                .for_each(|(tri, index_list)| {
+                    if !cull_flags[tri] {
+                        (*self_ptr.0).draw_triangle_parallel(
+                            &Triangle::from_data(verts, &index_list),
+                            color,
+                        );
+                    }
                 })
         }
     }
@@ -573,28 +315,13 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         unsafe {
             let self_ptr = self.get_self_ptr();
             indices
-                .par_chunks_exact(3)
+                .chunks_exact(3)
+                //.par_chunks_exact(3)
                 //.enumerate()
-                .for_each(|tri| {
-                    (*self_ptr.0).draw_triangle_fast(
-                        &[
-                            *verts.get_unchecked(tri[0] as usize),
-                            *verts.get_unchecked(tri[1] as usize),
-                            *verts.get_unchecked(tri[2] as usize),
-                        ],
-                        color,
-                    );
+                .for_each(|index_list| {
+                    (*self_ptr.0)
+                        .draw_triangle_fast(&Triangle::from_data(verts, &index_list), color);
                 })
         }
     }
-}
-
-fn orient_2d(a: &Vec3A, b: &Vec3A, point: &Vec3A) -> f32 {
-    (b.x() - a.x()) * (point.y() - a.y()) - (b.y() - a.y()) * (point.x() - a.x())
-}
-
-unsafe fn vec4_from_pixel_ptr(ptr: *const f32) -> Vec4 {
-    use std::ptr::slice_from_raw_parts;
-    let data = slice_from_raw_parts(ptr, 4);
-    Vec4::from_slice_unaligned(&*data)
 }

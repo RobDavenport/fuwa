@@ -1,9 +1,9 @@
 use crate::fuwa;
 
 pub enum TextureFormat {
+    ARGB,
     RGB,
     RGBA,
-    ARGB,
 }
 
 pub struct Texture {

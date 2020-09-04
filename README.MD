@@ -21,9 +21,13 @@ https://github.com/ssloy/tinyrenderer/wiki
 
 https://www.youtube.com/watch?v=uehGqieEbus&list=PLqCJpWy5Fohe8ucwhksiv9hTF5sfid8lA
 
+https://www.gabrielgambetta.com/computer-graphics-from-scratch/introduction.html
+
+https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/
+
 TODO:
-1. Use RasterBoundingBox (but be areful for performance regressions)
-1. Split folder structure into separate modules
+1. See Rasterizer.rs and refactor the draw functions to make it easier to draw different kinds of things (flat shaded, vertex color, texture etc)
 1. Add texture / rendering
-1. Merge "Textures" resource and "Resource Generator" into a "Repository" or some other kind of grouping
+1. Merge "Textures" resource and "Resource Generator" into a "Repository" or some other kind of grouping?
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
+1. Split folder structure into separate modules
