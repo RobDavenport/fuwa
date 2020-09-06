@@ -1,14 +1,14 @@
 mod fuwa;
 pub use fuwa::*;
 
-mod rasterization;
-pub use rasterization::*;
-
 mod textures;
 pub use textures::*;
 
 mod handles;
 pub use handles::*;
+
+mod render_pipeline;
+pub use render_pipeline::*;
 
 use glam::*;
 
@@ -65,21 +65,21 @@ pub fn plane(size: f32) -> [Vec3A; 4] {
     ]
 }
 
-pub fn tri_indices() -> [u32; 3] {
+pub fn tri_indices() -> [usize; 3] {
     [0, 1, 2]
 }
 
-pub fn plane_indices() -> [u32; 6] {
+pub fn plane_indices() -> [usize; 6] {
     [0, 1, 2, 2, 1, 3]
 }
 
-pub fn cube_lines() -> [u32; 24] {
+pub fn cube_lines() -> [usize; 24] {
     [
         0, 1, 1, 3, 3, 2, 2, 0, 0, 4, 1, 5, 3, 7, 2, 6, 4, 5, 5, 7, 7, 6, 6, 4,
     ]
 }
 
-pub fn cube_indices() -> [u32; 36] {
+pub fn cube_indices() -> [usize; 36] {
     [
         0, 1, 2, 2, 1, 3, 1, 5, 3, 3, 5, 7, 2, 3, 6, 3, 7, 6, 4, 7, 5, 4, 6, 7, 0, 2, 4, 2, 6, 4,
         0, 4, 1, 1, 4, 5,
@@ -146,7 +146,7 @@ pub fn unit_cube_normals() -> [Vec2; 24] {
     ]
 }
 
-pub fn unit_cube_indices() -> [u32; 36] {
+pub fn unit_cube_indices() -> [usize; 36] {
     [
         0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8, 12, 13, 14, 14, 15, 12, 16, 17,
         18, 18, 19, 16, 20, 21, 22, 22, 23, 20,

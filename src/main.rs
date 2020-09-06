@@ -29,8 +29,18 @@ fn main() -> Result<(), Error> {
     };
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
+    let mut pipeline = Pipeline::new(FragmentShader {
+        fragment_shader: |vertex_position| {
+            [
+                ((vertex_position[0] / WIDTH as f32) * 255.) as u8,
+                ((vertex_position[1] / HEIGHT as f32) * 255.) as u8,
+                (vertex_position[2] * 255.) as u8,
+                0xFF,
+            ]
+        },
+    });
 
-    let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
+    //let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
 
     let lines = cube_lines();
     let indices = cube_indices();
@@ -98,28 +108,38 @@ fn main() -> Result<(), Error> {
                     * Mat3::from_rotation_y(rot_y)
                     * Mat3::from_rotation_z(rot_z);
 
-                let mut active_model = cube_verts;
-                let mut active_indices = cube_indices();
+                //let mut active_model = cube_verts;
+                //let mut active_indices = cube_indices();
 
-                active_model.par_iter_mut().for_each(|vertex| {
-                    *vertex = rotation.mul_vec3a(*vertex);
-                    *vertex += offset;
-                });
+                let active_model = IndexedTriangleList {
+                    index_list: &indices,
+                    vertex_list: &cube_verts,
+                };
 
-                let cull_flags = active_indices
-                    .par_chunks_exact(3)
-                    .map(|triangle| {
-                        is_backfacing_points(&[
-                            active_model[triangle[0] as usize],
-                            active_model[triangle[1] as usize],
-                            active_model[triangle[2] as usize],
-                        ])
-                    })
-                    .collect::<Vec<_>>();
+                pipeline.bind_rotation(rotation);
+                pipeline.bind_translation(offset);
 
-                active_model.par_iter_mut().for_each(|vertex| {
-                    fuwa.transform_screen_space_perspective(vertex);
-                });
+                pipeline.draw(&mut fuwa, &active_model);
+
+                // active_model.par_iter_mut().for_each(|vertex| {
+                //     *vertex = rotation.mul_vec3a(*vertex);
+                //     *vertex += offset;
+                // });
+
+                // let cull_flags = active_indices
+                //     .par_chunks_exact(3)
+                //     .map(|triangle| {
+                //         is_backfacing_points(&[
+                //             active_model[triangle[0] as usize],
+                //             active_model[triangle[1] as usize],
+                //             active_model[triangle[2] as usize],
+                //         ])
+                //     })
+                //     .collect::<Vec<_>>();
+
+                // active_model.par_iter_mut().for_each(|vertex| {
+                //     fuwa.transform_screen_space_perspective(vertex);
+                // });
 
                 // let mut second_model = cube_verts;
                 // second_model.par_iter_mut().for_each(|vertex| {
@@ -131,12 +151,12 @@ fn main() -> Result<(), Error> {
 
                 //let color = &Colors::GREEN;
                 //fuwa.draw_indexed(&plane, &plane_indices, &Colors::WHITE);
-                fuwa.draw_indexed_parallel(
-                    &active_model,
-                    &active_indices,
-                    &cull_flags,
-                    &Colors::WHITE,
-                );
+                // fuwa.draw_indexed_parallel(
+                //     &active_model,
+                //     &active_indices,
+                //     &cull_flags,
+                //     &Colors::WHITE,
+                // );
                 //fuwa.draw_indexed_parallel(&second_model, &indices, &Colors::GREEN);
 
                 // unsafe {

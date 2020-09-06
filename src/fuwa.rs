@@ -1,7 +1,8 @@
 use super::handles::Handle;
-use super::rasterization::Edge;
+use super::render_pipeline::rasterization::*;
 use super::HandleGenerator;
 use super::Texture;
+use crate::render_pipeline::Pipeline;
 use crate::Triangle;
 use glam::*;
 use hashbrown::HashMap;
@@ -288,40 +289,68 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32
     }
 
-    pub fn draw_indexed_parallel(
-        &mut self,
-        verts: &[Vec3A],
-        indices: &[u32],
-        cull_flags: &[bool],
-        color: &[u8; 4],
-    ) {
-        unsafe {
-            let self_ptr = self.get_self_ptr();
-            indices
-                .par_chunks_exact(3)
-                .enumerate()
-                .for_each(|(tri, index_list)| {
-                    if !cull_flags[tri] {
-                        (*self_ptr.0).draw_triangle_parallel(
-                            &Triangle::from_data(verts, &index_list),
-                            color,
-                        );
-                    }
-                })
-        }
+    pub(crate) fn set_pixel_unchecked(&mut self, x: u32, y: u32, color: &[u8; 4]) {
+        self.set_pixel_by_index(self.pos_to_index(x, y), color)
     }
 
-    pub fn draw_indexed(&mut self, verts: &[Vec3A], indices: &[u32], color: &[u8; 4]) {
-        unsafe {
-            let self_ptr = self.get_self_ptr();
-            indices
-                .chunks_exact(3)
-                //.par_chunks_exact(3)
-                //.enumerate()
-                .for_each(|index_list| {
-                    (*self_ptr.0)
-                        .draw_triangle_fast(&Triangle::from_data(verts, &index_list), color);
-                })
-        }
-    }
+    // pub(crate) fn set_pixels_unchecked(&mut self, x: u32, y: u32, mask: Vec4Mask, color: &[u8; 4]) {
+    //     let index = self.pos_to_index(x, y);
+
+    //     unsafe {
+    //         let color_float = f32::from_ne_bytes(*color);
+
+    //         let current_pixels_ptr = self
+    //             .pixels
+    //             .get_frame()
+    //             .get_unchecked_mut(index..index + 4 * Edge::STEP_X)
+    //             .as_mut_ptr();
+
+    //         let insert = mask.select(
+    //             Vec4::splat(color_float),
+    //             vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
+    //         );
+
+    //         current_pixels_ptr.copy_from(
+    //             insert.as_ref().as_ptr() as *const u8,
+    //             (16 - (x.saturating_sub(self.width - Edge::STEP_X as u32) << 2)) as usize,
+    //         );
+    //     };
+    // }
+
+    // pub fn draw_indexed_parallel(
+    //     &mut self,
+    //     verts: &[Vec3A],
+    //     indices: &[usize],
+    //     cull_flags: &[bool],
+    //     color: &[u8; 4],
+    // ) {
+    //     unsafe {
+    //         let self_ptr = self.get_self_ptr();
+    //         indices
+    //             .par_chunks_exact(3)
+    //             .enumerate()
+    //             .for_each(|(tri, index_list)| {
+    //                 if !cull_flags[tri] {
+    //                     (*self_ptr.0).draw_triangle_parallel(
+    //                         &Triangle::from_data(verts, &index_list),
+    //                         color,
+    //                     );
+    //                 }
+    //             })
+    //     }
+    // }
+
+    // pub fn draw_indexed(&mut self, verts: &[Vec3A], indices: &[usize], color: &[u8; 4]) {
+    //     unsafe {
+    //         let self_ptr = self.get_self_ptr();
+    //         indices
+    //             .chunks_exact(3)
+    //             //.par_chunks_exact(3)
+    //             //.enumerate()
+    //             .for_each(|index_list| {
+    //                 (*self_ptr.0)
+    //                     .draw_triangle_fast(&Triangle::from_data(verts, &index_list), color);
+    //             })
+    //     }
+    // }
 }
