@@ -264,15 +264,15 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn transform_screen_space_perspective(&self, point: &mut Vec3A) {
-        let z_inverse = point.z().recip();
-        *point.x_mut() = (point.x() * z_inverse + 1.) * self.x_factor;
-        *point.y_mut() = (-point.y() * z_inverse + 1.) * self.y_factor;
+    pub fn transform_screen_space_perspective(&self, point: &mut [f32]) {
+        let z_inverse = point[2].recip();
+        point[0] = (point[0] * z_inverse + 1.) * self.x_factor;
+        point[1] = (-point[1] * z_inverse + 1.) * self.y_factor;
     }
 
-    pub fn transform_screen_space_orthographic(&self, point: &mut Vec3A) {
-        *point.x_mut() = (point.x() + 1.) * self.x_factor;
-        *point.y_mut() = (-point.y() + 1.) * self.y_factor;
+    pub fn transform_screen_space_orthographic(&self, point: &mut [f32]) {
+        point[0] = (point[0] + 1.) * self.x_factor;
+        point[1] = (-point[1] + 1.) * self.y_factor;
     }
 
     fn check_pixel_within_bounds(&self, pos: &Vec2) -> bool {
@@ -293,29 +293,53 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         self.set_pixel_by_index(self.pos_to_index(x, y), color)
     }
 
-    // pub(crate) fn set_pixels_unchecked(&mut self, x: u32, y: u32, mask: Vec4Mask, color: &[u8; 4]) {
-    //     let index = self.pos_to_index(x, y);
+    pub(crate) fn set_pixels_unchecked(
+        &mut self,
+        x: u32,
+        y: u32,
+        mask: Vec4Mask,
+        fragment_shader: fn(&[f32]) -> [u8; 4],
+        interpolated_values: Vec<Vec4>,
+    ) {
+        let index = self.pos_to_index(x, y);
 
-    //     unsafe {
-    //         let color_float = f32::from_ne_bytes(*color);
+        let mut p0 = Vec::with_capacity(interpolated_values.len());
+        let mut p1 = Vec::with_capacity(interpolated_values.len());
+        let mut p2 = Vec::with_capacity(interpolated_values.len());
+        let mut p3 = Vec::with_capacity(interpolated_values.len());
 
-    //         let current_pixels_ptr = self
-    //             .pixels
-    //             .get_frame()
-    //             .get_unchecked_mut(index..index + 4 * Edge::STEP_X)
-    //             .as_mut_ptr();
+        let shader_values = interpolated_values.iter().for_each(|vec| {
+            p0.push(vec.x());
+            p1.push(vec.y());
+            p2.push(vec.z());
+            p3.push(vec.w());
+        });
 
-    //         let insert = mask.select(
-    //             Vec4::splat(color_float),
-    //             vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
-    //         );
+        unsafe {
+            let shader_outputs = vec4(
+                *(fragment_shader(&p0).as_ptr() as *const f32),
+                *(fragment_shader(&p1).as_ptr() as *const f32),
+                *(fragment_shader(&p2).as_ptr() as *const f32),
+                *(fragment_shader(&p3).as_ptr() as *const f32),
+            );
 
-    //         current_pixels_ptr.copy_from(
-    //             insert.as_ref().as_ptr() as *const u8,
-    //             (16 - (x.saturating_sub(self.width - Edge::STEP_X as u32) << 2)) as usize,
-    //         );
-    //     };
-    // }
+            let current_pixels_ptr = self
+                .pixels
+                .get_frame()
+                .get_unchecked_mut(index..index + 4 * Edge::STEP_X)
+                .as_mut_ptr();
+
+            let insert = mask.select(
+                shader_outputs,
+                vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
+            );
+
+            current_pixels_ptr.copy_from(
+                insert.as_ref().as_ptr() as *const u8,
+                (16 - (x.saturating_sub(self.width - Edge::STEP_X as u32) << 2)) as usize,
+            );
+        };
+    }
 
     // pub fn draw_indexed_parallel(
     //     &mut self,
@@ -353,4 +377,10 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     //             })
     //     }
     // }
+}
+
+unsafe fn vec4_from_pixel_ptr(ptr: *const f32) -> Vec4 {
+    use std::ptr::slice_from_raw_parts;
+    let data = slice_from_raw_parts(ptr, 4);
+    Vec4::from_slice_unaligned(&*data)
 }

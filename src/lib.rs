@@ -32,36 +32,48 @@ pub mod Colors {
     pub const OFFWHITE: [u8; 4] = [0xFF, 0xF1, 0xE8, 0xFF];
 }
 
-pub fn cube(size: f32) -> [Vec3A; 8] {
+pub fn vec3_into_float_slice(vec: &[Vec3]) -> Vec<f32> {
+    let mut output = Vec::<f32>::with_capacity(vec.len() * 3);
+
+    vec.iter().for_each(|v| {
+        output.push(v.x());
+        output.push(v.y());
+        output.push(v.z());
+    });
+
+    output
+}
+
+pub fn cube(size: f32) -> [Vec3; 8] {
     let size = size * 0.5;
     [
-        vec3a(-size, -size, -size),
-        vec3a(size, -size, -size),
-        vec3a(-size, size, -size),
-        vec3a(size, size, -size),
-        vec3a(-size, -size, size),
-        vec3a(size, -size, size),
-        vec3a(-size, size, size),
-        vec3a(size, size, size),
+        vec3(-size, -size, -size),
+        vec3(size, -size, -size),
+        vec3(-size, size, -size),
+        vec3(size, size, -size),
+        vec3(-size, -size, size),
+        vec3(size, -size, size),
+        vec3(-size, size, size),
+        vec3(size, size, size),
     ]
 }
 
-pub fn tri(size: f32) -> [Vec3A; 3] {
+pub fn tri(size: f32) -> [Vec3; 3] {
     let size = size * 0.5;
     [
-        vec3a(-size, -size, 0.),
-        vec3a(size, -size, 0.),
-        vec3a(-size, size, 0.),
+        vec3(-size, -size, 0.),
+        vec3(size, -size, 0.),
+        vec3(-size, size, 0.),
     ]
 }
 
-pub fn plane(size: f32) -> [Vec3A; 4] {
+pub fn plane(size: f32) -> [Vec3; 4] {
     let size = size * 0.5;
     [
-        Vec3A::new(-size, -size, 0.),
-        Vec3A::new(size, -size, 0.),
-        Vec3A::new(-size, size, 0.),
-        Vec3A::new(size, size, 0.),
+        vec3(-size, -size, 0.),
+        vec3(size, -size, 0.),
+        vec3(-size, size, 0.),
+        vec3(size, size, 0.),
     ]
 }
 
@@ -86,33 +98,33 @@ pub fn cube_indices() -> [usize; 36] {
     ]
 }
 
-pub fn unit_cube_verts(size: f32) -> [Vec3A; 24] {
+pub fn unit_cube_verts(size: f32) -> [Vec3; 24] {
     let size = size * 0.5;
     [
-        vec3a(-size, -size, size),
-        vec3a(size, -size, size),
-        vec3a(size, size, size),
-        vec3a(-size, size, size),
-        vec3a(-size, size, -size),
-        vec3a(size, size, -size),
-        vec3a(size, -size, -size),
-        vec3a(-size, -size, -size),
-        vec3a(size, -size, -size),
-        vec3a(size, size, -size),
-        vec3a(size, size, size),
-        vec3a(size, -size, size),
-        vec3a(-size, -size, size),
-        vec3a(-size, size, size),
-        vec3a(-size, size, -size),
-        vec3a(-size, -size, -size),
-        vec3a(size, size, -size),
-        vec3a(-size, size, -size),
-        vec3a(-size, size, size),
-        vec3a(size, size, size),
-        vec3a(size, -size, size),
-        vec3a(-size, -size, size),
-        vec3a(-size, -size, -size),
-        vec3a(size, -size, -size),
+        vec3(-size, -size, size),
+        vec3(size, -size, size),
+        vec3(size, size, size),
+        vec3(-size, size, size),
+        vec3(-size, size, -size),
+        vec3(size, size, -size),
+        vec3(size, -size, -size),
+        vec3(-size, -size, -size),
+        vec3(size, -size, -size),
+        vec3(size, size, -size),
+        vec3(size, size, size),
+        vec3(size, -size, size),
+        vec3(-size, -size, size),
+        vec3(-size, size, size),
+        vec3(-size, size, -size),
+        vec3(-size, -size, -size),
+        vec3(size, size, -size),
+        vec3(-size, size, -size),
+        vec3(-size, size, size),
+        vec3(size, size, size),
+        vec3(size, -size, size),
+        vec3(-size, -size, size),
+        vec3(-size, -size, -size),
+        vec3(size, -size, -size),
     ]
 }
 
@@ -151,4 +163,42 @@ pub fn unit_cube_indices() -> [usize; 36] {
         0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8, 12, 13, 14, 14, 15, 12, 16, 17,
         18, 18, 19, 16, 20, 21, 22, 22, 23, 20,
     ]
+}
+
+pub fn colored_triangle() -> [f32; 18] {
+    //Position, Color
+    [
+        -1., -1., 0., 1., 0., 0., 1., -1., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1.,
+    ]
+}
+
+pub fn colored_triangle_indices() -> [usize; 3] {
+    [0, 1, 2]
+}
+
+pub fn colored_cube(size: f32) -> Vec<f32> {
+    let cube = cube(size);
+
+    let mut out = Vec::with_capacity(cube.len() * 6);
+
+    let colors = [
+        Colors::RED,
+        Colors::BLUE,
+        Colors::GREEN,
+        Colors::CYAN,
+        Colors::MAGENTA,
+        Colors::YELLOW,
+    ];
+
+    cube.iter().enumerate().for_each(|(idx, vertex)| {
+        out.push(vertex.x());
+        out.push(vertex.y());
+        out.push(vertex.z());
+        let color = colors[idx % colors.len()];
+        out.push(color[0] as f32 / 255.);
+        out.push(color[1] as f32 / 255.);
+        out.push(color[2] as f32 / 255.);
+    });
+
+    out
 }

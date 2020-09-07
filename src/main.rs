@@ -29,27 +29,42 @@ fn main() -> Result<(), Error> {
     };
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
-    let mut pipeline = Pipeline::new(FragmentShader {
-        fragment_shader: |vertex_position| {
+    let vertex_descriptor = VertexDescriptor::new(
+        vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
+        0,
+    );
+
+    let fragment_shader = FragmentShader {
+        fragment_shader: |in_data| {
             [
-                ((vertex_position[0] / WIDTH as f32) * 255.) as u8,
-                ((vertex_position[1] / HEIGHT as f32) * 255.) as u8,
-                (vertex_position[2] * 255.) as u8,
+                (in_data[3] * 255.) as u8,
+                (in_data[4] * 255.) as u8,
+                (in_data[5] * 255.) as u8,
                 0xFF,
             ]
         },
-    });
+    };
+
+    let mut pipeline = Pipeline::new(vertex_descriptor, fragment_shader);
 
     //let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
 
     let lines = cube_lines();
-    let indices = cube_indices();
+    let cube_indices = cube_indices();
     let cube_verts = cube(1.0);
+    let mut cube_data = vec3_into_float_slice(&cube_verts);
 
     let tri = tri(1.);
     let plane = plane(1.);
     let tri_indices = tri_indices();
     let plane_indices = plane_indices();
+
+    let colored_triangle_data = colored_triangle();
+    let colored_triangle_indices = colored_triangle_indices();
+
+    let colored_cube = colored_cube(1.);
+
+    let mut plane_data = vec3_into_float_slice(&plane);
 
     let mut offset = Vec3A::new(0., 0., 2.);
 
@@ -111,9 +126,11 @@ fn main() -> Result<(), Error> {
                 //let mut active_model = cube_verts;
                 //let mut active_indices = cube_indices();
 
-                let active_model = IndexedTriangleList {
-                    index_list: &indices,
-                    vertex_list: &cube_verts,
+                let mut active_data = colored_cube.clone();
+
+                let active_model = IndexedVertexList {
+                    index_list: &cube_indices,
+                    vertex_list: &mut active_data,
                 };
 
                 pipeline.bind_rotation(rotation);
