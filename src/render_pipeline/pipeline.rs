@@ -145,8 +145,8 @@ impl Pipeline {
         triangle.transform_screen_space_perspective(fuwa);
 
         //Draw the triangle
-        self.draw_triangle_fast(fuwa, triangle);
-        //self.draw_triangle_parallel(fuwa, triangle);
+        //self.draw_triangle_fast(fuwa, triangle);
+        self.draw_triangle_parallel(fuwa, triangle);
     }
 
     pub fn draw_triangle_parallel<W: HasRawWindowHandle + Send + Sync>(
@@ -206,6 +206,13 @@ impl Pipeline {
         //     e01.one_step_x * par_count as f32,
         // ];
 
+        let position = self.vertex_descriptor.position_index;
+        let z0 = triangle.points[0].0[position + 2];
+        let zs1 = triangle.points[1].0[position + 2] - z0;
+        let zs2 = triangle.points[2].0[position + 2] - z0;
+        let len = triangle.points[0].0.len();
+        let vz0 = Vec4::splat(z0);
+
         (start_y..end_y).step_by(Edge::STEP_Y).for_each(|y| {
             // let mut w0 = w0_row + step_x_offset[0];
             // let mut w1 = w1_row + step_x_offset[1];
@@ -228,20 +235,10 @@ impl Pipeline {
                         let l1 = w1 / weight_sum;
                         let l2 = w2 / weight_sum;
 
-                        let position = self.vertex_descriptor.position_index;
-
-                        let pz = Vec4::splat(triangle.points[0].0[position + 2])
-                            + (l1
-                                * (triangle.points[1].0[position + 2]
-                                    - triangle.points[0].0[position + 2]))
-                            + (l2
-                                * (triangle.points[2].0[position + 2]
-                                    - triangle.points[0].0[position + 2]));
+                        let pz = vz0 + (l1 * zs1) + (l2 * zs2);
 
                         if let Some(depth_pass) = (*ptr.0).try_set_depth_simd(x, y, pz, pixel_mask)
                         {
-                            let len = triangle.points[0].0.len();
-
                             let mut interp = [
                                 Vec::with_capacity(len),
                                 Vec::with_capacity(len),
@@ -255,12 +252,8 @@ impl Pipeline {
                                 .enumerate()
                                 .for_each(|(idx, val)| {
                                     let result = Vec4::splat(*val)
-                                        + (l1
-                                            * (triangle.points[1].0[idx]
-                                                - triangle.points[0].0[idx]))
-                                        + (l2
-                                            * (triangle.points[2].0[idx]
-                                                - triangle.points[0].0[idx]));
+                                        + (l1 * (triangle.points[1].0[idx] - *val))
+                                        + (l2 * (triangle.points[2].0[idx] - *val));
 
                                     interp[0].push(result[0]);
                                     interp[1].push(result[1]);
@@ -316,6 +309,10 @@ impl Pipeline {
         let mut w1_row = orient_2d(&points2d[2], &points2d[0], &p);
         let mut w2_row = orient_2d(&points2d[0], &points2d[1], &p);
 
+        let z0 = points[0].z();
+        let zs1 = points[1].z() - z0;
+        let zs2 = points[2].z() - z0;
+
         let fuwa_ptr = fuwa.get_self_ptr();
         unsafe {
             (bb.min_y() as u32..bb.max_y() as u32).for_each(|y| {
@@ -329,9 +326,11 @@ impl Pipeline {
                         let l1 = w1 / weight_sum;
                         let l2 = w2 / weight_sum;
 
-                        let pz = points[0].z()
-                            + (l1 * (points[1].z() - points[0].z()))
-                            + (l2 * (points[2].z() - points[0].z()));
+                        let pz = z0 + (l1 * zs1) + (l2 * zs2);
+
+                        // let pz = points[0].z()
+                        //     + (l1 * (points[1].z() - points[0].z()))
+                        //     + (l2 * (points[2].z() - points[0].z()));
 
                         if fuwa.try_set_depth(x, y, pz) {
                             let interp = triangle.points[0]
