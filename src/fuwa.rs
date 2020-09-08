@@ -84,7 +84,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn clear(&mut self, color: &[u8; 4]) {
+    pub fn clear_color(&mut self, color: &[u8; 4]) {
         let color_bytes: [u8; 64] = [
             color[0], color[1], color[2], color[3], color[0], color[1], color[2], color[3],
             color[0], color[1], color[2], color[3], color[0], color[1], color[2], color[3],
@@ -97,9 +97,18 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         ];
         self.pixels
             .get_frame()
-            .par_chunks_exact_mut(4 * 16)
+            .par_chunks_mut(4 * 16)
             .for_each(|pixel_chunk| {
                 pixel_chunk.copy_from_slice(&color_bytes);
+            })
+    }
+
+    pub fn clear(&mut self) {
+        self.pixels
+            .get_frame()
+            .par_iter_mut()
+            .for_each(|pixel_chunk| {
+                *pixel_chunk = 0;
             })
     }
 
@@ -124,18 +133,21 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         depths: Vec4,
         mask: Vec4Mask,
     ) -> Option<Vec4Mask> {
+        optick::event!();
         unsafe {
             let index = (x + y * self.width) as usize;
             let values = self
                 .depth_buffer
                 .get_unchecked_mut(index..index + Edge::STEP_X);
 
-            let prev_depths = vec4(values[0], values[1], values[2], values[3]);
+            let prev_depths = Vec4::from([values[0], values[1], values[2], values[3]]);
             let result = depths.cmplt(prev_depths) & mask;
 
             if result.any() {
                 let update = result.select(depths, prev_depths);
-                values.copy_from_slice(&[update[0], update[1], update[2], update[3]]);
+                values
+                    .as_mut_ptr()
+                    .copy_from(update.as_ref() as *const f32, 4);
                 Some(result)
             } else {
                 None
@@ -299,45 +311,42 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         y: u32,
         mask: Vec4Mask,
         fragment_shader: fn(&[f32]) -> [u8; 4],
-        interpolated_values: Vec<Vec4>,
+        interpolated_values: [Vec<f32>; 4],
     ) {
+        optick::event!();
         let index = self.pos_to_index(x, y);
-
-        let mut p0 = Vec::with_capacity(interpolated_values.len());
-        let mut p1 = Vec::with_capacity(interpolated_values.len());
-        let mut p2 = Vec::with_capacity(interpolated_values.len());
-        let mut p3 = Vec::with_capacity(interpolated_values.len());
-
-        let shader_values = interpolated_values.iter().for_each(|vec| {
-            p0.push(vec.x());
-            p1.push(vec.y());
-            p2.push(vec.z());
-            p3.push(vec.w());
-        });
+        let bitmask = mask.bitmask();
+        let draw_width =
+            Edge::STEP_X - (x as usize).saturating_sub(self.width as usize - Edge::STEP_X);
 
         unsafe {
-            let shader_outputs = vec4(
-                *(fragment_shader(&p0).as_ptr() as *const f32),
-                *(fragment_shader(&p1).as_ptr() as *const f32),
-                *(fragment_shader(&p2).as_ptr() as *const f32),
-                *(fragment_shader(&p3).as_ptr() as *const f32),
-            );
+            let current_pixels_ptr =
+                self.pixels.get_frame()[index..index + 4 * Edge::STEP_X].as_mut_ptr() as *mut f32;
 
-            let current_pixels_ptr = self
-                .pixels
-                .get_frame()
-                .get_unchecked_mut(index..index + 4 * Edge::STEP_X)
-                .as_mut_ptr();
+            let shader_outputs = [
+                if bitmask & 1 != 0 {
+                    *(fragment_shader(&interpolated_values[0]).as_ptr() as *const f32)
+                } else {
+                    current_pixels_ptr.read()
+                },
+                if draw_width >= 1 && bitmask & 2 != 0 {
+                    *(fragment_shader(&interpolated_values[1]).as_ptr() as *const f32)
+                } else {
+                    current_pixels_ptr.add(1).read()
+                },
+                if draw_width >= 2 && bitmask & 4 != 0 {
+                    *(fragment_shader(&interpolated_values[2]).as_ptr() as *const f32)
+                } else {
+                    current_pixels_ptr.add(2).read()
+                },
+                if draw_width >= 3 && bitmask & 8 != 0 {
+                    *(fragment_shader(&interpolated_values[3]).as_ptr() as *const f32)
+                } else {
+                    current_pixels_ptr.add(3).read()
+                },
+            ];
 
-            let insert = mask.select(
-                shader_outputs,
-                vec4_from_pixel_ptr(current_pixels_ptr as *const f32),
-            );
-
-            current_pixels_ptr.copy_from(
-                insert.as_ref().as_ptr() as *const u8,
-                (16 - (x.saturating_sub(self.width - Edge::STEP_X as u32) << 2)) as usize,
-            );
+            current_pixels_ptr.copy_from(&shader_outputs as *const f32, draw_width as usize);
         };
     }
 

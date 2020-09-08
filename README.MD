@@ -25,6 +25,8 @@ https://www.gabrielgambetta.com/computer-graphics-from-scratch/introduction.html
 
 https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/
 
+http://acta.uni-obuda.hu/Mileff_Nehez_Dudra_63.pdf
+
 TODO:
 1. See Rasterizer.rs and refactor the draw functions to make it easier to draw different kinds of things (flat shaded, vertex color, texture etc)
 1. Add texture / rendering

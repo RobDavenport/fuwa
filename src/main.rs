@@ -16,6 +16,7 @@ const HEIGHT: u32 = 720;
 const ROT_SPEED: f32 = 0.1;
 
 fn main() -> Result<(), Error> {
+    optick::start_capture();
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
@@ -66,7 +67,7 @@ fn main() -> Result<(), Error> {
 
     let mut plane_data = vec3_into_float_slice(&plane);
 
-    let mut offset = Vec3A::new(0., 0., 2.);
+    let mut offset = Vec3A::new(0., 0., 2.0);
 
     let mut rot_x = 0.0;
     let mut rot_y = 0.0;
@@ -76,6 +77,7 @@ fn main() -> Result<(), Error> {
         if input.update(&event) {
             // Close events
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                optick::stop_capture("FUWA CAPTURE");
                 *control_flow = ControlFlow::Exit;
                 return;
             }
@@ -116,7 +118,7 @@ fn main() -> Result<(), Error> {
         match event {
             Event::RedrawRequested(_) => {
                 // Draw the current frame
-                fuwa.clear(&Colors::BLACK);
+                fuwa.clear();
                 fuwa.clear_depth_buffer();
 
                 let rotation = Mat3::from_rotation_x(rot_x)
@@ -193,7 +195,7 @@ fn main() -> Result<(), Error> {
                 {
                     *control_flow = ControlFlow::Exit;
                     return;
-                }
+                };
             }
             Event::MainEventsCleared => {
                 // Handle input events

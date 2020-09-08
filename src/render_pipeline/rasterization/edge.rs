@@ -10,7 +10,7 @@ impl Edge {
     pub(crate) const STEP_X: usize = 4;
     pub(crate) const STEP_Y: usize = 1;
 
-    pub fn init(v0: &Vec3A, v1: &Vec3A, origin: &Vec3A) -> (Self, Vec4) {
+    pub fn init(v0: &Vec2, v1: &Vec2, origin: &Vec2) -> (Self, Vec4) {
         let a_val = v0.y() - v1.y();
         let b_val = v1.x() - v0.x();
         let c_val = (v0.x() * v1.y()) - (v0.y() * v1.x());

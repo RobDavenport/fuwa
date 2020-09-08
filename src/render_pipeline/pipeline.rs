@@ -75,7 +75,6 @@ impl Pipeline {
         vertex_list: &mut [f32],
         index_list: &[usize],
     ) {
-        use std::slice::from_raw_parts_mut;
         //loop through and build triangles,
         //also do backface culling if necessary
 
@@ -134,7 +133,6 @@ impl Pipeline {
         triangle: &mut Triangle,
     ) {
         //Do something later
-
         self.post_process_triangle(fuwa, triangle);
     }
 
@@ -147,8 +145,8 @@ impl Pipeline {
         triangle.transform_screen_space_perspective(fuwa);
 
         //Draw the triangle
+        self.draw_triangle_fast(fuwa, triangle);
         //self.draw_triangle_parallel(fuwa, triangle);
-        self.draw_triangle_parallel(fuwa, triangle);
     }
 
     pub fn draw_triangle_parallel<W: HasRawWindowHandle + Send + Sync>(
@@ -156,14 +154,15 @@ impl Pipeline {
         fuwa: &mut Fuwa<W>,
         triangle: &Triangle,
     ) {
-        let points = triangle.get_points_as_vec3a();
+        optick::event!();
+        let points = triangle.get_points_as_vec2();
         let bb = fuwa.calculate_raster_bb(&points);
         let fuwa_ptr = fuwa.get_self_ptr();
 
-        let p = Vec3A::new(bb.min_x(), bb.min_y(), 0.0);
-        let (e12, w0_row) = Edge::init(&points[1], &points[2], &p);
-        let (e20, w1_row) = Edge::init(&points[2], &points[0], &p);
-        let (e01, w2_row) = Edge::init(&points[0], &points[1], &p);
+        let origin = Vec2::new(bb.min_x(), bb.min_y());
+        let (e12, w0_row) = Edge::init(&points[1], &points[2], &origin);
+        let (e20, w1_row) = Edge::init(&points[2], &points[0], &origin);
+        let (e01, w2_row) = Edge::init(&points[0], &points[1], &origin);
 
         let bb = bb.prepare();
 
@@ -194,6 +193,7 @@ impl Pipeline {
         [start_x, start_y, end_x, end_y]: [u32; 4],
         //(par_offset, par_count): (usize, usize),
     ) {
+        optick::event!();
         // let step_x_offset = [
         //     e12.one_step_x * par_offset as f32,
         //     e20.one_step_x * par_offset as f32,
@@ -240,20 +240,33 @@ impl Pipeline {
 
                         if let Some(depth_pass) = (*ptr.0).try_set_depth_simd(x, y, pz, pixel_mask)
                         {
-                            let interp = triangle.points[0]
+                            let len = triangle.points[0].0.len();
+
+                            let mut interp = [
+                                Vec::with_capacity(len),
+                                Vec::with_capacity(len),
+                                Vec::with_capacity(len),
+                                Vec::with_capacity(len),
+                            ];
+
+                            triangle.points[0]
                                 .0
                                 .iter()
                                 .enumerate()
-                                .map(|(idx, val)| {
-                                    Vec4::splat(*val)
+                                .for_each(|(idx, val)| {
+                                    let result = Vec4::splat(*val)
                                         + (l1
                                             * (triangle.points[1].0[idx]
                                                 - triangle.points[0].0[idx]))
                                         + (l2
                                             * (triangle.points[2].0[idx]
-                                                - triangle.points[0].0[idx]))
-                                })
-                                .collect::<Vec<Vec4>>();
+                                                - triangle.points[0].0[idx]));
+
+                                    interp[0].push(result[0]);
+                                    interp[1].push(result[1]);
+                                    interp[2].push(result[2]);
+                                    interp[3].push(result[3]);
+                                });
 
                             (*ptr.0).set_pixels_unchecked(
                                 x as u32,
@@ -286,7 +299,8 @@ impl Pipeline {
         triangle: &Triangle,
     ) {
         let points = triangle.get_points_as_vec3a();
-        let bb = fuwa.calculate_raster_bb(&points);
+        let points2d = triangle.get_points_as_vec2();
+        let bb = fuwa.calculate_raster_bb(&points2d);
 
         let a01 = points[0].y() - points[1].y();
         let a12 = points[1].y() - points[2].y();
@@ -296,11 +310,11 @@ impl Pipeline {
         let b12 = points[2].x() - points[1].x();
         let b20 = points[0].x() - points[2].x();
 
-        let p = Vec3A::new(bb.min_x(), bb.min_y(), 0.0);
+        let p = Vec2::new(bb.min_x(), bb.min_y());
 
-        let mut w0_row = orient_2d(&points[1], &points[2], &p);
-        let mut w1_row = orient_2d(&points[2], &points[0], &p);
-        let mut w2_row = orient_2d(&points[0], &points[1], &p);
+        let mut w0_row = orient_2d(&points2d[1], &points2d[2], &p);
+        let mut w1_row = orient_2d(&points2d[2], &points2d[0], &p);
+        let mut w2_row = orient_2d(&points2d[0], &points2d[1], &p);
 
         let fuwa_ptr = fuwa.get_self_ptr();
         unsafe {
@@ -312,17 +326,8 @@ impl Pipeline {
                 (bb.min_x() as u32..bb.max_x() as u32).for_each(|x| {
                     if w0.is_sign_negative() && w1.is_sign_negative() && w2.is_sign_negative() {
                         let weight_sum = w0 + w1 + w2;
-                        //let l0 = w1 / weight_sum;
                         let l1 = w1 / weight_sum;
                         let l2 = w2 / weight_sum;
-
-                        // let px = points[0].x()
-                        //     + (l1 * (points[1].x() - points[0].x()))
-                        //     + (l2 * (points[2].x() - points[0].x()));
-
-                        // let py = points[0].y()
-                        //     + (l1 * (points[1].y() - points[0].y()))
-                        //     + (l2 * (points[2].y() - points[0].y()));
 
                         let pz = points[0].z()
                             + (l1 * (points[1].z() - points[0].z()))
@@ -363,7 +368,7 @@ impl Pipeline {
     }
 }
 
-fn orient_2d(a: &Vec3A, b: &Vec3A, point: &Vec3A) -> f32 {
+fn orient_2d(a: &Vec2, b: &Vec2, point: &Vec2) -> f32 {
     (b.x() - a.x()) * (point.y() - a.y()) - (b.y() - a.y()) * (point.x() - a.x())
 }
 

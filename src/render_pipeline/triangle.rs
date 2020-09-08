@@ -44,6 +44,20 @@ impl<'a> Triangle<'a> {
         ]
     }
 
+    pub fn get_points_as_vec2(&self) -> [Vec2; 3] {
+        [
+            Vec2::from_slice_unaligned(
+                &self.points[0].0[self.position_index..self.position_index + 2],
+            ),
+            Vec2::from_slice_unaligned(
+                &self.points[1].0[self.position_index..self.position_index + 2],
+            ),
+            Vec2::from_slice_unaligned(
+                &self.points[2].0[self.position_index..self.position_index + 2],
+            ),
+        ]
+    }
+
     // pub fn from_points(points: [Vec3A; 3]) -> Self {
     //     Self { points }
     // }
