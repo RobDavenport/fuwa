@@ -26,10 +26,14 @@ https://www.gabrielgambetta.com/computer-graphics-from-scratch/introduction.html
 https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/
 
 http://acta.uni-obuda.hu/Mileff_Nehez_Dudra_63.pdf
+https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digipen-master-of-science-in-computer-science-thesis-an-optimized-triangle-rasterizer.pdf
+
 
 TODO:
-1. See Rasterizer.rs and refactor the draw functions to make it easier to draw different kinds of things (flat shaded, vertex color, texture etc)
-1. Add texture / rendering
-1. Merge "Textures" resource and "Resource Generator" into a "Repository" or some other kind of grouping?
+1. Fix perspective correction for texture
+1. Improve the way of handling textures and sharders instead of hard coded things
+1. Vertex Shader & Geometry Shader
+1. Speed up rasterization algo for special case triangles
+1. Set up "Scenes" testing multiple changes
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
-1. Split folder structure into separate modules
+1. Investigate pros/cons of fixed point

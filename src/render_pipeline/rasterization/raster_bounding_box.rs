@@ -1,4 +1,3 @@
-use crate::render_pipeline::Triangle;
 use crate::Fuwa;
 use glam::*;
 use raw_window_handle::HasRawWindowHandle;

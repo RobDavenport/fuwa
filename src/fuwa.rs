@@ -1,9 +1,6 @@
-use super::handles::Handle;
-use super::render_pipeline::rasterization::*;
-use super::HandleGenerator;
+use super::FuwaStats;
 use super::Texture;
-use crate::render_pipeline::Pipeline;
-use crate::Triangle;
+use crate::{FragmentShaderFunction, Uniforms};
 use glam::*;
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
@@ -21,22 +18,21 @@ pub struct Fuwa<W: HasRawWindowHandle> {
     pub y_factor: f32,
     pub pixels: Pixels<W>,
     depth_buffer: Vec<f32>,
+    pub(crate) uniforms: Uniforms,
+    //fuwa_data: FuwaData,
     pub raster_par_count: usize,
-    pub(crate) textures: HashMap<Handle<Texture>, Texture>,
-    pub(crate) texture_generator: HandleGenerator<Texture>,
 }
 
 lazy_static! {
-    static ref RENDER_MASK: Vec4 = Vec4::splat(0.);
     static ref THREAD_COLOR: [&'static [u8; 4]; 8] = [
-        &super::Colors::RED,
-        &super::Colors::GREEN,
-        &super::Colors::BLUE,
-        &super::Colors::CYAN,
-        &super::Colors::MAGENTA,
-        &super::Colors::YELLOW,
-        &super::Colors::PINK,
-        &super::Colors::OFFWHITE,
+        &super::colors::RED,
+        &super::colors::GREEN,
+        &super::colors::BLUE,
+        &super::colors::CYAN,
+        &super::colors::MAGENTA,
+        &super::colors::YELLOW,
+        &super::colors::PINK,
+        &super::colors::OFFWHITE,
     ];
 }
 
@@ -67,8 +63,8 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             raster_par_count,
             x_factor: width as f32 * 0.5,
             y_factor: height as f32 * 0.5,
-            textures: HashMap::new(),
-            texture_generator: HandleGenerator::new(),
+            uniforms: Uniforms::new(),
+            //fuwa_data: FuwaData::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
                 .enable_vsync(vsync)
                 .request_adapter_options(RequestAdapterOptions {
@@ -122,35 +118,6 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 true
             } else {
                 false
-            }
-        }
-    }
-
-    pub fn try_set_depth_simd(
-        &mut self,
-        x: u32,
-        y: u32,
-        depths: Vec4,
-        mask: Vec4Mask,
-    ) -> Option<Vec4Mask> {
-        optick::event!();
-        unsafe {
-            let index = (x + y * self.width) as usize;
-            let values = self
-                .depth_buffer
-                .get_unchecked_mut(index..index + Edge::STEP_X);
-
-            let prev_depths = Vec4::from([values[0], values[1], values[2], values[3]]);
-            let result = depths.cmplt(prev_depths) & mask;
-
-            if result.any() {
-                let update = result.select(depths, prev_depths);
-                values
-                    .as_mut_ptr()
-                    .copy_from(update.as_ref() as *const f32, 4);
-                Some(result)
-            } else {
-                None
             }
         }
     }
@@ -233,7 +200,17 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub(crate) fn draw_line(&mut self, mut start: Vec3A, mut end: Vec3A, color: &[u8; 4]) {
+    pub fn draw_box(&mut self, top_left: Vec3A, bottom_right: Vec3A, color: &[u8; 4]) {
+        let top_right = vec3a(bottom_right.x(), top_left.y(), 0.);
+        let bottom_left = vec3a(top_left.x(), bottom_right.y(), 0.);
+
+        self.draw_line(top_left.clone(), top_right.clone(), color);
+        self.draw_line(top_right.clone(), bottom_right.clone(), color);
+        self.draw_line(bottom_right.clone(), bottom_left.clone(), color);
+        self.draw_line(bottom_left.clone(), top_left.clone(), color);
+    }
+
+    pub fn draw_line(&mut self, mut start: Vec3A, mut end: Vec3A, color: &[u8; 4]) {
         use std::ptr::swap;
 
         assert!(
@@ -276,22 +253,24 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn transform_screen_space_perspective(&self, point: &mut [f32]) {
-        let z_inverse = point[2].recip();
-        point[0] = (point[0] * z_inverse + 1.) * self.x_factor;
-        point[1] = (-point[1] * z_inverse + 1.) * self.y_factor;
+    pub fn transform_screen_space_perspective(&self, vertex: &mut [f32]) {
+        let z_inverse = vertex[2].recip();
+        vertex[0] = (vertex[0] * z_inverse + 1.) * self.x_factor;
+        vertex[1] = (-vertex[1] * z_inverse + 1.) * self.y_factor;
+        // let z_inverse = vertex[position_index + 2].recip();
+
+        // for v in vertex.iter_mut() {
+        //     *v *= z_inverse;
+        // }
+
+        // vertex[position_index] = (vertex[position_index] + 1.) * self.x_factor;
+        // vertex[position_index + 1] = (-vertex[position_index + 1] + 1.) * self.y_factor;
+        // vertex[position_index + 2] = z_inverse;
     }
 
     pub fn transform_screen_space_orthographic(&self, point: &mut [f32]) {
         point[0] = (point[0] + 1.) * self.x_factor;
         point[1] = (-point[1] + 1.) * self.y_factor;
-    }
-
-    fn check_pixel_within_bounds(&self, pos: &Vec2) -> bool {
-        let x = pos.x() as i32;
-        let y = pos.y() as i32;
-
-        x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32
     }
 
     fn check_3d_pixel_within_bounds(&self, pos: &Vec3A) -> bool {
@@ -305,91 +284,79 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         self.set_pixel_by_index(self.pos_to_index(x, y), color)
     }
 
-    pub(crate) fn set_pixels_unchecked(
+    pub(crate) fn try_set_depth_block(
         &mut self,
-        x: u32,
-        y: u32,
-        mask: Vec4Mask,
-        fragment_shader: fn(&[f32]) -> [u8; 4],
-        interpolated_values: [Vec<f32>; 4],
-    ) {
-        optick::event!();
-        let index = self.pos_to_index(x, y);
-        let bitmask = mask.bitmask();
-        let draw_width =
-            Edge::STEP_X - (x as usize).saturating_sub(self.width as usize - Edge::STEP_X);
+        (block_x, block_y): (u32, u32),
+        (width, height): (u32, u32),
+        depths: Vec<f32>,
+    ) -> Option<Vec<bool>> {
+        let mut output = Vec::with_capacity((width * height) as usize);
+        let mut idx = 0;
 
         unsafe {
-            let current_pixels_ptr =
-                self.pixels.get_frame()[index..index + 4 * Edge::STEP_X].as_mut_ptr() as *mut f32;
+            for y in block_y..block_y + height {
+                let y_offset = y * self.width;
+                let prev = self.depth_buffer.get_unchecked_mut(
+                    (y_offset + block_x) as usize..(y_offset + block_x + width) as usize,
+                );
+                for prev_value in prev.iter_mut() {
+                    if depths[idx] < *prev_value {
+                        *prev_value = depths[idx];
+                        output.push(true);
+                    } else {
+                        output.push(false);
+                    }
+                    idx += 1;
+                }
+            }
+        }
 
-            let shader_outputs = [
-                if bitmask & 1 != 0 {
-                    *(fragment_shader(&interpolated_values[0]).as_ptr() as *const f32)
-                } else {
-                    current_pixels_ptr.read()
-                },
-                if draw_width >= 1 && bitmask & 2 != 0 {
-                    *(fragment_shader(&interpolated_values[1]).as_ptr() as *const f32)
-                } else {
-                    current_pixels_ptr.add(1).read()
-                },
-                if draw_width >= 2 && bitmask & 4 != 0 {
-                    *(fragment_shader(&interpolated_values[2]).as_ptr() as *const f32)
-                } else {
-                    current_pixels_ptr.add(2).read()
-                },
-                if draw_width >= 3 && bitmask & 8 != 0 {
-                    *(fragment_shader(&interpolated_values[3]).as_ptr() as *const f32)
-                } else {
-                    current_pixels_ptr.add(3).read()
-                },
-            ];
-
-            current_pixels_ptr.copy_from(&shader_outputs as *const f32, draw_width as usize);
-        };
+        if output.len() > 0 {
+            Some(output)
+        } else {
+            None
+        }
     }
 
-    // pub fn draw_indexed_parallel(
-    //     &mut self,
-    //     verts: &[Vec3A],
-    //     indices: &[usize],
-    //     cull_flags: &[bool],
-    //     color: &[u8; 4],
-    // ) {
-    //     unsafe {
-    //         let self_ptr = self.get_self_ptr();
-    //         indices
-    //             .par_chunks_exact(3)
-    //             .enumerate()
-    //             .for_each(|(tri, index_list)| {
-    //                 if !cull_flags[tri] {
-    //                     (*self_ptr.0).draw_triangle_parallel(
-    //                         &Triangle::from_data(verts, &index_list),
-    //                         color,
-    //                     );
-    //                 }
-    //             })
-    //     }
-    // }
+    pub(crate) fn set_pixels_block(
+        &mut self,
+        (block_x, block_y): (u32, u32),
+        (width, height): (u32, u32),
+        depth_pass: &[bool],
+        interp: Vec<Vec<f32>>,
+        fragment_shader: &FragmentShaderFunction,
+    ) {
+        let mut idx = 0;
+        for y in block_y..block_y + height {
+            for x in block_x..block_x + width {
+                if depth_pass[idx] {
+                    self.set_pixel_unchecked(
+                        x,
+                        y,
+                        &(fragment_shader)(&interp[idx], &self.uniforms),
+                    );
+                    idx += 1;
+                }
+            }
+        }
+    }
 
-    // pub fn draw_indexed(&mut self, verts: &[Vec3A], indices: &[usize], color: &[u8; 4]) {
-    //     unsafe {
-    //         let self_ptr = self.get_self_ptr();
-    //         indices
-    //             .chunks_exact(3)
-    //             //.par_chunks_exact(3)
-    //             //.enumerate()
-    //             .for_each(|index_list| {
-    //                 (*self_ptr.0)
-    //                     .draw_triangle_fast(&Triangle::from_data(verts, &index_list), color);
-    //             })
-    //     }
-    // }
-}
+    pub fn load_texture(&mut self, path: String, set: u8, binding: u8) {
+        let image_bytes = std::fs::read(format!("./resources/{}", &path)).unwrap();
+        let image_data = image::load_from_memory(&image_bytes).unwrap();
+        let image_data = image_data.as_rgba8().unwrap();
+        let dimensions = image_data.dimensions();
 
-unsafe fn vec4_from_pixel_ptr(ptr: *const f32) -> Vec4 {
-    use std::ptr::slice_from_raw_parts;
-    let data = slice_from_raw_parts(ptr, 4);
-    Vec4::from_slice_unaligned(&*data)
+        //use bincode::serialize;
+        let texture = Texture {
+            width: dimensions.0,
+            height: dimensions.1,
+            data: image_data.to_vec(),
+        };
+
+        //TODO: FIX THIS LATER
+        self.uniforms.insert_texture(texture);
+        // self.uniforms
+        //     .insert(set, binding, serialize(&texture).unwrap())
+    }
 }

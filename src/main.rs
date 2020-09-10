@@ -1,9 +1,6 @@
-#![deny(clippy::all)]
-
 use fuwa::*;
 use glam::*;
 use pixels::Error;
-use rayon::prelude::*;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -16,7 +13,6 @@ const HEIGHT: u32 = 720;
 const ROT_SPEED: f32 = 0.1;
 
 fn main() -> Result<(), Error> {
-    optick::start_capture();
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = {
@@ -31,22 +27,16 @@ fn main() -> Result<(), Error> {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
     let vertex_descriptor = VertexDescriptor::new(
-        vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
+        //vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
+        vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec2],
         0,
     );
 
-    let fragment_shader = FragmentShader {
-        fragment_shader: |in_data| {
-            [
-                (in_data[3] * 255.) as u8,
-                (in_data[4] * 255.) as u8,
-                (in_data[5] * 255.) as u8,
-                0xFF,
-            ]
-        },
-    };
+    let set = 0;
+    let binding = 0;
 
-    let mut pipeline = Pipeline::new(vertex_descriptor, fragment_shader);
+    let mut pipeline = Pipeline::new(vertex_descriptor, FragmentShader::textured(set, binding));
+    fuwa.load_texture("box.png".to_string(), set, binding);
 
     //let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
 
@@ -64,6 +54,8 @@ fn main() -> Result<(), Error> {
     let colored_triangle_indices = colored_triangle_indices();
 
     let colored_cube = colored_cube(1.);
+    let unit_cube = unit_cube_uvs_into_data(1.);
+    let unit_cube_indices = unit_cube_indices();
 
     let mut plane_data = vec3_into_float_slice(&plane);
 
@@ -77,7 +69,6 @@ fn main() -> Result<(), Error> {
         if input.update(&event) {
             // Close events
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-                optick::stop_capture("FUWA CAPTURE");
                 *control_flow = ControlFlow::Exit;
                 return;
             }
@@ -128,10 +119,10 @@ fn main() -> Result<(), Error> {
                 //let mut active_model = cube_verts;
                 //let mut active_indices = cube_indices();
 
-                let mut active_data = colored_cube.clone();
+                let mut active_data = unit_cube.clone();
 
                 let active_model = IndexedVertexList {
-                    index_list: &cube_indices,
+                    index_list: &unit_cube_indices,
                     vertex_list: &mut active_data,
                 };
 
@@ -204,18 +195,4 @@ fn main() -> Result<(), Error> {
             _ => (),
         }
     })
-}
-
-pub fn load_texture(path: String) -> Texture {
-    let image_bytes = std::fs::read(format!("./resources/{}", &path)).unwrap();
-    let image_data = image::load_from_memory(&image_bytes).unwrap();
-    let image_data = image_data.as_rgba8().unwrap();
-    let dimensions = image_data.dimensions();
-
-    Texture {
-        data: image_data.to_vec(),
-        width: dimensions.0,
-        height: dimensions.1,
-        format: TextureFormat::RGBA,
-    }
 }

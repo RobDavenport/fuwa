@@ -6,12 +6,7 @@ pub struct IndexedVertexList<'a> {
 }
 
 impl<'a> IndexedVertexList<'a> {
-    pub(crate) fn create_copy(&self, out: &'a mut Vec<f32>) -> Self {
-        out.resize(self.vertex_list.len(), 0.);
-        out.copy_from_slice(self.vertex_list);
-        Self {
-            vertex_list: out,
-            index_list: self.index_list,
-        }
+    pub(crate) fn clone_vertex_data(&self) -> Vec<f32> {
+        self.vertex_list.to_vec()
     }
 }

@@ -8,13 +8,9 @@ mod triangle;
 pub use triangle::*;
 
 pub mod rasterization;
-pub use rasterization::*;
 
 mod shaders;
 pub use shaders::*;
-
-mod pipeline_descriptor;
-pub use pipeline_descriptor::*;
 
 mod vertex;
 pub use vertex::*;

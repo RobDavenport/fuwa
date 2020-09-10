@@ -34,14 +34,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
 
     let fragment_shader = FragmentShader {
-        fragment_shader: |in_data| {
+        fragment_shader: Box::new(|in_data, _| {
             [
                 (in_data[3] * 255.) as u8,
                 (in_data[4] * 255.) as u8,
                 (in_data[5] * 255.) as u8,
                 0xFF,
             ]
-        },
+        }),
     };
 
     let mut pipeline = Pipeline::new(vertex_descriptor, fragment_shader);
@@ -51,8 +51,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let translation = vec3a(0., 0., 2.0);
 
-    let black = fuwa::Colors::BLACK;
-    let white = fuwa::Colors::WHITE;
+    let black = fuwa::colors::BLACK;
+    let white = fuwa::colors::WHITE;
+
+    let rotation = Mat3::from_cols(
+        vec3(0.69670665, -0.40504977, -0.59205955),
+        vec3(0.0, 0.8253356, -0.5646425),
+        vec3(0.71735615, 0.39339018, 0.5750168),
+    );
 
     c.bench_function("render_scene", |b| {
         b.iter(|| {
@@ -67,6 +73,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             };
 
             pipeline.bind_translation(black_box(translation));
+            pipeline.bind_rotation(black_box(rotation));
 
             pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
         });

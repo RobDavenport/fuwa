@@ -1,18 +1,21 @@
 mod fuwa;
 pub use fuwa::*;
 
+mod fuwa_stats;
+pub use fuwa_stats::*;
+
+mod data;
+pub use data::*;
+
 mod textures;
 pub use textures::*;
-
-mod handles;
-pub use handles::*;
 
 mod render_pipeline;
 pub use render_pipeline::*;
 
 use glam::*;
 
-pub mod Colors {
+pub mod colors {
     //R, G, B, A
     pub const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
     pub const LIGHTGRAY: [u8; 4] = [0xC8, 0xC8, 0xC8, 0xFF];
@@ -98,6 +101,22 @@ pub fn cube_indices() -> [usize; 36] {
     ]
 }
 
+pub fn unit_cube_uvs_into_data(size: f32) -> Vec<f32> {
+    let verts = unit_cube_verts(size);
+    let uvs = unit_cube_uvs();
+
+    let mut output = Vec::with_capacity((verts.len() * 3) + uvs.len());
+    for (i, vert) in verts.iter().enumerate() {
+        output.push(vert.x());
+        output.push(vert.y());
+        output.push(vert.z());
+        output.push(uvs[i * 2]);
+        output.push(uvs[(i * 2) + 1]);
+    }
+
+    output
+}
+
 pub fn unit_cube_verts(size: f32) -> [Vec3; 24] {
     let size = size * 0.5;
     [
@@ -158,10 +177,18 @@ pub fn unit_cube_normals() -> [Vec2; 24] {
     ]
 }
 
+pub fn unit_cube_uvs() -> [f32; 48] {
+    [
+        0., 0., 1., 0., 1., 1., 0., 1., 1., 0., 0., 0., 0., 1., 1., 1., 0., 0., 1., 0., 1., 1., 0.,
+        1., 1., 0., 0., 0., 0., 1., 1., 1., 1., 0., 0., 0., 0., 1., 1., 1., 0., 0., 1., 0., 1., 1.,
+        0., 1.,
+    ]
+}
+
 pub fn unit_cube_indices() -> [usize; 36] {
     [
-        0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8, 12, 13, 14, 14, 15, 12, 16, 17,
-        18, 18, 19, 16, 20, 21, 22, 22, 23, 20,
+        0, 2, 1, 2, 0, 3, 4, 6, 5, 6, 4, 7, 8, 10, 9, 10, 8, 11, 12, 14, 13, 14, 12, 15, 16, 18,
+        17, 18, 16, 19, 20, 22, 21, 22, 20, 23,
     ]
 }
 
@@ -182,12 +209,12 @@ pub fn colored_cube(size: f32) -> Vec<f32> {
     let mut out = Vec::with_capacity(cube.len() * 6);
 
     let colors = [
-        Colors::RED,
-        Colors::BLUE,
-        Colors::GREEN,
-        Colors::CYAN,
-        Colors::MAGENTA,
-        Colors::YELLOW,
+        colors::RED,
+        colors::BLUE,
+        colors::GREEN,
+        colors::CYAN,
+        colors::MAGENTA,
+        colors::YELLOW,
     ];
 
     cube.iter().enumerate().for_each(|(idx, vertex)| {
