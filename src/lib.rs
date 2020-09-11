@@ -80,12 +80,31 @@ pub fn plane(size: f32) -> [Vec3; 4] {
     ]
 }
 
-pub fn tri_indices() -> [usize; 3] {
-    [0, 1, 2]
-}
-
 pub fn plane_indices() -> [usize; 6] {
     [0, 1, 2, 2, 1, 3]
+}
+
+pub fn plane_uvs() -> [f32; 8] {
+    [0., 1., 1., 1., 0., 0., 1., 0.]
+}
+
+pub fn textured_plane(size: f32) -> Vec<f32> {
+    let plane = plane(size);
+    let plane_uvs = plane_uvs();
+
+    let mut out = Vec::with_capacity(20);
+    for (i, v) in plane.iter().enumerate() {
+        out.push(v.x());
+        out.push(v.y());
+        out.push(v.z());
+        out.push(plane_uvs[i * 2]);
+        out.push(plane_uvs[(i * 2) + 1]);
+    }
+    out
+}
+
+pub fn tri_indices() -> [usize; 3] {
+    [0, 1, 2]
 }
 
 pub fn cube_lines() -> [usize; 24] {

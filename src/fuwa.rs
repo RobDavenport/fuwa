@@ -253,19 +253,16 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn transform_screen_space_perspective(&self, vertex: &mut [f32]) {
-        let z_inverse = vertex[2].recip();
-        vertex[0] = (vertex[0] * z_inverse + 1.) * self.x_factor;
-        vertex[1] = (-vertex[1] * z_inverse + 1.) * self.y_factor;
-        // let z_inverse = vertex[position_index + 2].recip();
+    pub fn transform_screen_space_perspective(&self, vertex: &mut [f32], position_index: usize) {
+        let z_inverse = vertex[position_index + 2].recip();
 
-        // for v in vertex.iter_mut() {
-        //     *v *= z_inverse;
-        // }
+        for v in vertex.iter_mut() {
+            *v *= z_inverse;
+        }
 
-        // vertex[position_index] = (vertex[position_index] + 1.) * self.x_factor;
-        // vertex[position_index + 1] = (-vertex[position_index + 1] + 1.) * self.y_factor;
-        // vertex[position_index + 2] = z_inverse;
+        vertex[position_index] = (vertex[position_index] + 1.) * self.x_factor;
+        vertex[position_index + 1] = (-vertex[position_index + 1] + 1.) * self.y_factor;
+        vertex[position_index + 2] = z_inverse;
     }
 
     pub fn transform_screen_space_orthographic(&self, point: &mut [f32]) {
@@ -289,7 +286,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         (block_x, block_y): (u32, u32),
         (width, height): (u32, u32),
         depths: Vec<f32>,
-    ) -> Option<Vec<bool>> {
+    ) -> Option<Vec<Option<f32>>> {
         let mut output = Vec::with_capacity((width * height) as usize);
         let mut idx = 0;
 
@@ -302,9 +299,9 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 for prev_value in prev.iter_mut() {
                     if depths[idx] < *prev_value {
                         *prev_value = depths[idx];
-                        output.push(true);
+                        output.push(Some(depths[idx].recip()));
                     } else {
-                        output.push(false);
+                        output.push(None);
                     }
                     idx += 1;
                 }
@@ -322,14 +319,14 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         &mut self,
         (block_x, block_y): (u32, u32),
         (width, height): (u32, u32),
-        depth_pass: &[bool],
+        depth_pass: &[Option<f32>],
         interp: Vec<Vec<f32>>,
         fragment_shader: &FragmentShaderFunction,
     ) {
         let mut idx = 0;
         for y in block_y..block_y + height {
             for x in block_x..block_x + width {
-                if depth_pass[idx] {
+                if depth_pass[idx].is_some() {
                     self.set_pixel_unchecked(
                         x,
                         y,

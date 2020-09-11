@@ -1,5 +1,10 @@
 use crate::{Texture, Uniforms};
 use glam::*;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref U8FASTVEC: Vec3A = Vec3A::splat(255.);
+}
 
 pub type FragmentShaderFunction = Box<dyn Fn(&[f32], &Uniforms) -> [u8; 4] + Send + Sync>;
 
@@ -11,12 +16,8 @@ impl FragmentShader {
     pub fn color_blend() -> Self {
         Self {
             fragment_shader: Box::new(|data, _| {
-                [
-                    (data[3] * 255.) as u8,
-                    (data[4] * 255.) as u8,
-                    0x00, //(data[5] * 255.) as u8,
-                    0xFF,
-                ]
+                let c = Vec3A::from([data[3], data[4], data[5]]) * *U8FASTVEC;
+                [c[0] as u8, c[1] as u8, c[2] as u8, 0xFF]
             }),
         }
     }
@@ -32,11 +33,9 @@ impl FragmentShader {
 }
 
 fn sample_2d(u: f32, v: f32, texture: &Texture) -> [u8; 4] {
-    let u = u * texture.width as f32;
-    let v = v * texture.height as f32;
-    let u = (u as u32).min(texture.width);
-    let v = (v as u32).min(texture.height);
-    let index = (((u + v * texture.width) * 4)).min((texture.width * texture.height * 4) - 1) as usize;
+    let u = (u * (texture.width - 1) as f32).round() as u32;
+    let v = (v * (texture.height - 1) as f32).round() as u32;
+    let index = 4 * (u + (v * texture.width)) as usize;
     [
         texture.data[index],
         texture.data[index + 1],

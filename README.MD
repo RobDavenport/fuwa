@@ -30,7 +30,7 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 
 TODO:
-1. Fix perspective correction for texture
+1. Investigate "wide" and SIMD related crates
 1. Improve the way of handling textures and sharders instead of hard coded things
 1. Vertex Shader & Geometry Shader
 1. Speed up rasterization algo for special case triangles

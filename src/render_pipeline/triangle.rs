@@ -81,15 +81,9 @@ impl<'a> Triangle<'a> {
         &mut self,
         fuwa: &Fuwa<F>,
     ) {
-        fuwa.transform_screen_space_perspective(
-            &mut self.points[0].raw_data[self.position_index..self.position_index + 3],
-        );
-        fuwa.transform_screen_space_perspective(
-            &mut self.points[1].raw_data[self.position_index..self.position_index + 3],
-        );
-        fuwa.transform_screen_space_perspective(
-            &mut self.points[2].raw_data[self.position_index..self.position_index + 3],
-        );
+        fuwa.transform_screen_space_perspective(&mut self.points[0].raw_data, self.position_index);
+        fuwa.transform_screen_space_perspective(&mut self.points[1].raw_data, self.position_index);
+        fuwa.transform_screen_space_perspective(&mut self.points[2].raw_data, self.position_index);
     }
 }
 

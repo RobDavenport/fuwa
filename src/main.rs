@@ -27,7 +27,6 @@ fn main() -> Result<(), Error> {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
     let vertex_descriptor = VertexDescriptor::new(
-        //vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
         vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec2],
         0,
     );
@@ -38,26 +37,8 @@ fn main() -> Result<(), Error> {
     let mut pipeline = Pipeline::new(vertex_descriptor, FragmentShader::textured(set, binding));
     fuwa.load_texture("box.png".to_string(), set, binding);
 
-    //let tex_handle = fuwa.upload_texture(load_texture("box.png".to_string()));
-
-    let lines = cube_lines();
-    let cube_indices = cube_indices();
-    let cube_verts = cube(1.0);
-    let mut cube_data = vec3_into_float_slice(&cube_verts);
-
-    let tri = tri(1.);
-    let plane = plane(1.);
-    let tri_indices = tri_indices();
-    let plane_indices = plane_indices();
-
-    let colored_triangle_data = colored_triangle();
-    let colored_triangle_indices = colored_triangle_indices();
-
-    let colored_cube = colored_cube(1.);
-    let unit_cube = unit_cube_uvs_into_data(1.);
-    let unit_cube_indices = unit_cube_indices();
-
-    let mut plane_data = vec3_into_float_slice(&plane);
+    let cube_data = unit_cube_uvs_into_data(1.);
+    let cube_indices = unit_cube_indices();
 
     let mut offset = Vec3A::new(0., 0., 2.0);
 
@@ -116,13 +97,10 @@ fn main() -> Result<(), Error> {
                     * Mat3::from_rotation_y(rot_y)
                     * Mat3::from_rotation_z(rot_z);
 
-                //let mut active_model = cube_verts;
-                //let mut active_indices = cube_indices();
-
-                let mut active_data = unit_cube.clone();
+                let mut active_data = cube_data.clone();
 
                 let active_model = IndexedVertexList {
-                    index_list: &unit_cube_indices,
+                    index_list: &cube_indices,
                     vertex_list: &mut active_data,
                 };
 
@@ -130,53 +108,6 @@ fn main() -> Result<(), Error> {
                 pipeline.bind_translation(offset);
 
                 pipeline.draw(&mut fuwa, &active_model);
-
-                // active_model.par_iter_mut().for_each(|vertex| {
-                //     *vertex = rotation.mul_vec3a(*vertex);
-                //     *vertex += offset;
-                // });
-
-                // let cull_flags = active_indices
-                //     .par_chunks_exact(3)
-                //     .map(|triangle| {
-                //         is_backfacing_points(&[
-                //             active_model[triangle[0] as usize],
-                //             active_model[triangle[1] as usize],
-                //             active_model[triangle[2] as usize],
-                //         ])
-                //     })
-                //     .collect::<Vec<_>>();
-
-                // active_model.par_iter_mut().for_each(|vertex| {
-                //     fuwa.transform_screen_space_perspective(vertex);
-                // });
-
-                // let mut second_model = cube_verts;
-                // second_model.par_iter_mut().for_each(|vertex| {
-                //     *vertex = rotation.mul_vec3a(*vertex);
-                //     *vertex += offset;
-                //     *vertex.x_mut() = -vertex.x();
-                //     fuwa.transform_screen_space_perspective(vertex);
-                // });
-
-                //let color = &Colors::GREEN;
-                //fuwa.draw_indexed(&plane, &plane_indices, &Colors::WHITE);
-                // fuwa.draw_indexed_parallel(
-                //     &active_model,
-                //     &active_indices,
-                //     &cull_flags,
-                //     &Colors::WHITE,
-                // );
-                //fuwa.draw_indexed_parallel(&second_model, &indices, &Colors::GREEN);
-
-                // unsafe {
-                //     fuwa.draw_triangle(&[
-                //         *active_model.get_unchecked(0),
-                //         *active_model.get_unchecked(1),
-                //         *active_model.get_unchecked(2),
-                //     ], color);
-
-                // }
 
                 if fuwa
                     .render()

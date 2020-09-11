@@ -33,18 +33,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         0,
     );
 
-    let fragment_shader = FragmentShader {
-        fragment_shader: Box::new(|in_data, _| {
-            [
-                (in_data[3] * 255.) as u8,
-                (in_data[4] * 255.) as u8,
-                (in_data[5] * 255.) as u8,
-                0xFF,
-            ]
-        }),
-    };
-
-    let mut pipeline = Pipeline::new(vertex_descriptor, fragment_shader);
+    let mut pipeline = Pipeline::new(vertex_descriptor, FragmentShader::color_blend());
 
     let colored_cube = colored_cube(1.);
     let cube_indices = cube_indices();

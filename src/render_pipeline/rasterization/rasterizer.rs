@@ -147,14 +147,19 @@ fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
                                 (block_x0..block_x1).for_each(|pixel_x| {
                                     //Check if pixel is inside the triangle
                                     //We can just check the sign bit because they are floats.
+                                    // >= 0 means all values are positive
                                     if ((cx0.to_bits() | cx1.to_bits() | cx2.to_bits()) as i32) >= 0
                                     {
                                         let pz = get_interpolated_z(&triangle, cx0, cx1, cx2);
                                         unsafe {
-                                            let interpolated_data =
-                                                &interpolate_triangle(&triangle, cx0, cx1, cx2);
-
                                             if (*fuwa.0).try_set_depth(pixel_x, pixel_y, pz) {
+                                                let interpolated_data = &interpolate_triangle(
+                                                    &triangle,
+                                                    cx0,
+                                                    cx1,
+                                                    cx2,
+                                                    pz.recip(),
+                                                );
                                                 (*fuwa.0).set_pixel_unchecked(
                                                     pixel_x,
                                                     pixel_y,
@@ -216,13 +221,13 @@ fn get_interpolated_z(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> f32 {
 }
 
 //TODO: Can I use SIMD here?
-fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> Vec<f32> {
+fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32, pixel_z: f32) -> Vec<f32> {
     let (l1, l2) = get_interp_values(w0, w1, w2);
     let (p0i, p1i, p2i, len) = triangle.get_vertex_iterators();
 
     let mut out = Vec::with_capacity(len);
     for (p0, p1, p2) in izip!(p0i, p1i, p2i) {
-        out.push(p0 + (l1 * (p1 - p0)) + (l2 * (p2 - p0)));
+        out.push((p0 + (l1 * (p1 - p0)) + (l2 * (p2 - p0))) * pixel_z);
     }
     out
 }
@@ -266,7 +271,7 @@ fn get_interpolated_triangle_block(
     dx: (f32, f32, f32),
     dy: (f32, f32, f32),
     (width, height): (u32, u32),
-    depth_pass: &[bool],
+    depth_pass: &[Option<f32>],
 ) -> Vec<Vec<f32>> {
     let mut left_interpolator = Vec3A::from(w00);
     let step_x = Vec3A::from(dy);
@@ -288,12 +293,12 @@ fn get_interpolated_triangle_block(
     for _ in 0..height {
         let mut x_interpolator = left_interpolator;
         for _ in 0..width {
-            if depth_pass[counter] {
+            if let Some(pixel_depth) = depth_pass[counter] {
                 let mut inner = Vec::with_capacity(len);
                 let (l1, l2) =
                     get_interp_values(x_interpolator[0], x_interpolator[1], x_interpolator[2]);
                 for i in 0..len {
-                    inner.push(p0s[i] + (l1 * sub10[i]) + (l2 * sub20[i]));
+                    inner.push((p0s[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_depth);
                 }
                 out.push(inner);
             }
