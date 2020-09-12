@@ -41,6 +41,7 @@ impl Pipeline {
         fuwa: &mut Fuwa<W>,
         indexed_list: &IndexedVertexList,
     ) {
+        //optick::next_frame();
         let copied_vertex_data = &mut indexed_list.clone_vertex_data();
         self.process_triangle_list(copied_vertex_data);
         self.assemble_triangles(fuwa, copied_vertex_data, &indexed_list.index_list)

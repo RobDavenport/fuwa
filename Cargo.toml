@@ -17,6 +17,9 @@ lazy_static = "1.4.0"
 hashbrown = "0.8.2"
 image = "0.23.9"
 itertools = "0.9.0"
+optick = "1.3.1"
+once_cell = "1.4.1"
+wide = "0.5.4"
 
 [dev-dependencies]
 criterion = "0.3.3"

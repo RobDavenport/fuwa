@@ -25,6 +25,7 @@ fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
     fs: &FragmentShaderFunction,
     bb: RasterBoundingBox,
 ) {
+    //optick::event!();
     let points = triangle.get_points_as_vec3a();
 
     //Deltas - Number indicates the edge
@@ -47,6 +48,7 @@ fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
         .into_par_iter()
         .step_by(BLOCK_HEIGHT as usize)
         .for_each(|block_y0| {
+            //optick::register_thread("raster_tri_row");
             //Simple easy out per row
             let mut row_already_draw = false;
 
@@ -212,22 +214,24 @@ fn get_interp_values(w0: f32, w1: f32, w2: f32) -> (f32, f32) {
 }
 
 fn get_interpolated_z(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> f32 {
+    //optick::event!();
+
     let (l1, l2) = get_interp_values(w0, w1, w2);
-    let z_index = triangle.position_index + 2;
-    let z0 = triangle.points[0].raw_data[z_index];
-    let z1 = triangle.points[1].raw_data[z_index];
-    let z2 = triangle.points[2].raw_data[z_index];
-    z0 + (l1 * (z1 - z0)) + (l2 * (z2 - z0))
+    let [z0, zs10, zs20] = triangle.get_z_diffs();
+    z0 + (l1 * zs10) + (l2 * zs20)
 }
 
 //TODO: Can I use SIMD here?
 fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32, pixel_z: f32) -> Vec<f32> {
+    //optick::event!();
+
     let (l1, l2) = get_interp_values(w0, w1, w2);
-    let (p0i, p1i, p2i, len) = triangle.get_vertex_iterators();
+    let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
+    let len = p0.len();
 
     let mut out = Vec::with_capacity(len);
-    for (p0, p1, p2) in izip!(p0i, p1i, p2i) {
-        out.push((p0 + (l1 * (p1 - p0)) + (l2 * (p2 - p0))) * pixel_z);
+    for i in 0..len {
+        out.push((p0[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_z);
     }
     out
 }
@@ -240,12 +244,8 @@ fn get_interpolated_z_block(
     width: u32,
     height: u32,
 ) -> Vec<f32> {
-    let z_index = triangle.position_index + 2;
-    let z0 = triangle.points[0].raw_data[z_index];
-    let z1 = triangle.points[1].raw_data[z_index];
-    let z2 = triangle.points[2].raw_data[z_index];
-    let zs10 = z1 - z0;
-    let zs20 = z2 - z0;
+    //optick::event!();
+    let [z0, zs10, zs20] = triangle.get_z_diffs();
 
     let mut left_interpolator = Vec3A::from(w00);
     let step_x = Vec3A::from(dy);
@@ -265,6 +265,7 @@ fn get_interpolated_z_block(
     out
 }
 
+//TODO: Perf this
 fn get_interpolated_triangle_block(
     triangle: &Triangle,
     w00: (f32, f32, f32),
@@ -273,21 +274,14 @@ fn get_interpolated_triangle_block(
     (width, height): (u32, u32),
     depth_pass: &[Option<f32>],
 ) -> Vec<Vec<f32>> {
+    //optick::event!();
+
     let mut left_interpolator = Vec3A::from(w00);
     let step_x = Vec3A::from(dy);
     let step_y = Vec3A::from(dx);
-    let (p0i, p1i, p2i, len) = triangle.get_vertex_iterators();
     let mut counter: usize = 0;
-
-    let mut p0s = Vec::with_capacity(len);
-    let mut sub10 = Vec::with_capacity(len);
-    let mut sub20 = Vec::with_capacity(len);
-
-    for (p0, p1, p2) in izip!(p0i, p1i, p2i) {
-        p0s.push(p0);
-        sub10.push(p1 - p0);
-        sub20.push(p2 - p0);
-    }
+    let [p0s, sub10, sub20] = triangle.get_interpolate_diffs();
+    let len = p0s.len();
 
     let mut out = Vec::with_capacity((width * height) as usize);
     for _ in 0..height {

@@ -109,6 +109,8 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 
     pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
+        //optick::event!();
+
         unsafe {
             let prev = self
                 .depth_buffer
@@ -278,6 +280,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 
     pub(crate) fn set_pixel_unchecked(&mut self, x: u32, y: u32, color: &[u8; 4]) {
+        //optick::event!();
         self.set_pixel_by_index(self.pos_to_index(x, y), color)
     }
 
@@ -287,6 +290,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         (width, height): (u32, u32),
         depths: Vec<f32>,
     ) -> Option<Vec<Option<f32>>> {
+        //optick::event!();
         let mut output = Vec::with_capacity((width * height) as usize);
         let mut idx = 0;
 
@@ -315,6 +319,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
+    //TODO: Perf this
     pub(crate) fn set_pixels_block(
         &mut self,
         (block_x, block_y): (u32, u32),
@@ -323,6 +328,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         interp: Vec<Vec<f32>>,
         fragment_shader: &FragmentShaderFunction,
     ) {
+        //optick::event!();
         let mut idx = 0;
         for y in block_y..block_y + height {
             for x in block_x..block_x + width {

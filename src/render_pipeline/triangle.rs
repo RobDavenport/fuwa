@@ -1,11 +1,15 @@
 use crate::{Fuwa, VertexData};
 use core::slice::Iter;
 use glam::*;
+use itertools::izip;
+use once_cell::sync::OnceCell;
 use raw_window_handle::HasRawWindowHandle;
 
 pub struct Triangle<'a> {
     pub(crate) points: [VertexData<'a>; 3],
     pub(crate) position_index: usize,
+    interpolate_diffs: OnceCell<[Vec<f32>; 3]>,
+    z_diffs: OnceCell<[f32; 3]>,
 }
 
 impl<'a> Triangle<'a> {
@@ -17,11 +21,50 @@ impl<'a> Triangle<'a> {
     ) -> Self {
         Self {
             points: [v0, v1, v2],
+            interpolate_diffs: OnceCell::new(),
+            z_diffs: OnceCell::new(),
             position_index,
         }
     }
 
-    pub(crate) fn get_vertex_iterators(&self) -> (Iter<f32>, Iter<f32>, Iter<f32>, usize) {
+    //TODO: Change this to a struct?
+    pub(crate) fn get_interpolate_diffs(&self) -> &[Vec<f32>; 3] {
+        self.interpolate_diffs
+            .get_or_try_init(|| -> Result<[Vec<f32>; 3], ()> {
+                let (p0i, p1i, p2i, len) = self.get_vertex_iterators();
+
+                let mut p0s = Vec::with_capacity(len);
+                let mut sub10 = Vec::with_capacity(len);
+                let mut sub20 = Vec::with_capacity(len);
+
+                for (p0, p1, p2) in izip!(p0i, p1i, p2i) {
+                    p0s.push(*p0);
+                    sub10.push(*p1 - *p0);
+                    sub20.push(*p2 - *p0);
+                }
+
+                Ok([p0s, sub10, sub20])
+            })
+            .unwrap()
+    }
+
+    //TODO: Change this to a struct?
+    pub(crate) fn get_z_diffs(&self) -> &[f32; 3] {
+        self.z_diffs
+            .get_or_try_init(|| -> Result<[f32; 3], ()> {
+                let z_index = self.position_index + 2;
+                let z0 = self.points[0].raw_data[z_index];
+                let z1 = self.points[1].raw_data[z_index];
+                let z2 = self.points[2].raw_data[z_index];
+                let zs10 = z1 - z0;
+                let zs20 = z2 - z0;
+
+                Ok([z0, zs10, zs20])
+            })
+            .unwrap()
+    }
+
+    fn get_vertex_iterators(&self) -> (Iter<f32>, Iter<f32>, Iter<f32>, usize) {
         (
             self.points[0].raw_data.iter(),
             self.points[1].raw_data.iter(),

@@ -47,9 +47,11 @@ fn main() -> Result<(), Error> {
     let mut rot_z = 0.0;
 
     event_loop.run(move |event, _, control_flow| {
+        //optick::start_capture();
         if input.update(&event) {
             // Close events
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                //optick::stop_capture("perf");
                 *control_flow = ControlFlow::Exit;
                 return;
             }
