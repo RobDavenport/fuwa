@@ -104,18 +104,18 @@ impl Pipeline {
         });
     }
 
-    fn process_triangle<W: HasRawWindowHandle + Sync + Send>(
-        &self,
-        fuwa: &mut Fuwa<W>,
+    fn process_triangle<'fs, W: HasRawWindowHandle + Sync + Send>(
+        &'fs self,
+        fuwa: &mut Fuwa<'fs, W>,
         triangle: &mut Triangle,
     ) {
         //Do something later
         self.post_process_triangle(fuwa, triangle);
     }
 
-    fn post_process_triangle<W: HasRawWindowHandle + Sync + Send>(
-        &self,
-        fuwa: &mut Fuwa<W>,
+    fn post_process_triangle<'fs, W: HasRawWindowHandle + Sync + Send>(
+        &'fs self,
+        fuwa: &mut Fuwa<'fs, W>,
         triangle: &mut Triangle,
     ) {
         //Transform triangle to screen space

@@ -11,7 +11,7 @@ const HEIGHT: u32 = 720;
 
 const SIZE: f32 = 1.0;
 
-fn init_window() -> Fuwa<Window> {
+fn init_window() -> Fuwa<'static, Window> {
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()

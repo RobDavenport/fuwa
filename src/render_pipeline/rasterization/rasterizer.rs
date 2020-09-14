@@ -1,17 +1,16 @@
-use super::RasterBoundingBox;
+use super::{Fragment, RasterBoundingBox};
 use crate::{FragmentShaderFunction, FuwaPtr, Triangle};
 use glam::*;
-use itertools::izip;
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
 
 const BLOCK_WIDTH: u32 = 8;
 const BLOCK_HEIGHT: u32 = 8;
 
-pub(crate) fn triangle<W: HasRawWindowHandle + Send + Sync>(
-    fuwa: FuwaPtr<W>,
+pub(crate) fn triangle<'fs, W: HasRawWindowHandle + Send + Sync>(
+    fuwa: FuwaPtr<'fs, W>,
     triangle: &Triangle,
-    fs: &FragmentShaderFunction,
+    fs: &'fs FragmentShaderFunction,
 ) {
     let points2d = triangle.get_points_as_vec2();
     let bb = unsafe { (*fuwa.0).calculate_raster_bb(&points2d) };
@@ -19,10 +18,10 @@ pub(crate) fn triangle<W: HasRawWindowHandle + Send + Sync>(
     rasterize_triangle_blocks(fuwa, triangle, fs, bb)
 }
 
-fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
-    fuwa: FuwaPtr<W>,
+fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
+    fuwa: FuwaPtr<'fs, W>,
     triangle: &Triangle,
-    fs: &FragmentShaderFunction,
+    fs: &'fs FragmentShaderFunction,
     bb: RasterBoundingBox,
 ) {
     //optick::event!();
@@ -119,7 +118,7 @@ fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
                                         (BLOCK_WIDTH, BLOCK_HEIGHT),
                                         &depth_pass,
                                     );
-                                    (*fuwa.0).set_pixels_block(
+                                    (*fuwa.0).set_fragments_block(
                                         (block_x0, block_y0),
                                         (BLOCK_WIDTH, BLOCK_HEIGHT),
                                         &depth_pass,
@@ -155,18 +154,21 @@ fn rasterize_triangle_blocks<W: HasRawWindowHandle + Send + Sync>(
                                         let pz = get_interpolated_z(&triangle, cx0, cx1, cx2);
                                         unsafe {
                                             if (*fuwa.0).try_set_depth(pixel_x, pixel_y, pz) {
-                                                let interpolated_data = &interpolate_triangle(
+                                                let interpolants = interpolate_triangle(
                                                     &triangle,
                                                     cx0,
                                                     cx1,
                                                     cx2,
                                                     pz.recip(),
                                                 );
-                                                (*fuwa.0).set_pixel_unchecked(
+                                                (*fuwa.0).set_fragment(
                                                     pixel_x,
                                                     pixel_y,
-                                                    &(fs)(interpolated_data, &(*fuwa.0).uniforms),
-                                                )
+                                                    Fragment {
+                                                        interpolants,
+                                                        shader: fs,
+                                                    },
+                                                );
                                             }
                                         }
                                     }

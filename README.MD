@@ -37,4 +37,3 @@ TODO:
 1. Set up "Scenes" testing multiple changes
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
 1. Investigate pros/cons of fixed point
-1. Consider altering flow to prevent "overinterpolation, overshade, overdraw" by saving the data 'per pixel' into a buffer. ie, find depth of each pixel, if pass, save the (&tri, weights, &shader) to 'render buffer,' then finally run all pixel shaders in parallel when presenting the final data.
