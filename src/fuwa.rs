@@ -1,8 +1,8 @@
-use super::FuwaStats;
 use super::Texture;
+use crate::rasterization::{Fragment, FragmentBuffer};
+use crate::render_pipeline::DepthBuffer;
 use crate::{FragmentShaderFunction, Uniforms};
 use glam::*;
-use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
 use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
@@ -10,16 +10,16 @@ use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
 use std::marker::{Send, Sync};
 
-pub struct Fuwa<W: HasRawWindowHandle> {
+pub struct Fuwa<'fs, W: HasRawWindowHandle> {
     pub width: u32,
     pub height: u32,
     pub pixel_count: u32,
     pub x_factor: f32,
     pub y_factor: f32,
     pub pixels: Pixels<W>,
-    depth_buffer: Vec<f32>,
+    pub(crate) depth_buffer: DepthBuffer,
+    pub(crate) fragment_buffer: FragmentBuffer<'fs>,
     pub(crate) uniforms: Uniforms,
-    //fuwa_data: FuwaData,
     pub raster_par_count: usize,
 }
 
@@ -37,13 +37,13 @@ lazy_static! {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct FuwaPtr<W: HasRawWindowHandle>(pub(crate) *mut Fuwa<W>);
+pub(crate) struct FuwaPtr<'fs, W: HasRawWindowHandle>(pub(crate) *mut Fuwa<'fs, W>);
 
-unsafe impl<W: HasRawWindowHandle> Send for FuwaPtr<W> {}
-unsafe impl<W: HasRawWindowHandle> Sync for FuwaPtr<W> {}
+unsafe impl<'fs, W: HasRawWindowHandle> Send for FuwaPtr<'fs, W> {}
+unsafe impl<'fs, W: HasRawWindowHandle> Sync for FuwaPtr<'fs, W> {}
 
-impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
-    pub(crate) fn get_self_ptr(&mut self) -> FuwaPtr<W> {
+impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
+    pub(crate) fn get_self_ptr(&mut self) -> FuwaPtr<'fs, W> {
         FuwaPtr(self as *mut Self)
     }
 
@@ -59,11 +59,12 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             width,
             height,
             pixel_count: width * height,
-            depth_buffer: vec![f32::INFINITY; (width * height) as usize],
+            depth_buffer: DepthBuffer::new(width, height),
             raster_par_count,
             x_factor: width as f32 * 0.5,
             y_factor: height as f32 * 0.5,
             uniforms: Uniforms::new(),
+            fragment_buffer: FragmentBuffer::new(width, height),
             //fuwa_data: FuwaData::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
                 .enable_vsync(vsync)
@@ -108,29 +109,37 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             })
     }
 
-    pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
-        //optick::event!();
-
-        unsafe {
-            let prev = self
-                .depth_buffer
-                .get_unchecked_mut((x + y * self.width) as usize);
-            if depth < *prev {
-                *prev = depth;
-                true
-            } else {
-                false
-            }
-        }
+    pub fn clear_depth_buffer(&mut self) {
+        self.depth_buffer.clear();
     }
 
-    pub fn clear_depth_buffer(&mut self) {
-        self.depth_buffer.par_iter_mut().for_each(|x| {
-            *x = f32::INFINITY;
-        });
+    pub fn clear_fragments(&mut self) {
+        self.fragment_buffer.clear();
+    }
+
+    pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
+        self.depth_buffer
+            .try_set_depth((x + y * self.width) as usize, depth)
+    }
+
+    pub(crate) fn set_fragment(&mut self, x: u32, y: u32, frag: Fragment<'fs>) {
+        self.fragment_buffer
+            .set_fragment((x + y * self.width) as usize, frag);
     }
 
     pub fn render(&mut self) -> Result<(), Error> {
+        let self_ptr = self.get_self_ptr();
+
+        self.fragment_buffer
+            .get_fragments_view()
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(index, fragment)| unsafe {
+                if let Some(frag) = fragment {
+                    (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms))
+                }
+            });
+
         self.pixels.render()
     }
 
@@ -139,7 +148,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         let mut depth_max = f32::NEG_INFINITY;
         let mut depth_min = f32::INFINITY;
 
-        self.depth_buffer.iter().for_each(|x| {
+        self.depth_buffer.depth_buffer.iter().for_each(|x| {
             if x.is_finite() {
                 if *x > depth_max {
                     depth_max = *x
@@ -150,7 +159,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         });
 
         let range = depth_max - depth_min;
-        let depth_iter = self.depth_buffer.par_iter_mut();
+        let depth_iter = self.depth_buffer.depth_buffer.par_iter_mut();
 
         if range != 0. {
             depth_iter.for_each(|x| {
@@ -164,7 +173,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             });
         }
 
-        let depth_iter = self.depth_buffer.par_iter_mut();
+        let depth_iter = self.depth_buffer.depth_buffer.par_iter_mut();
         pixel_iter.zip(depth_iter).for_each(|(pixel, depth)| {
             let color = *depth as u8;
             pixel.copy_from_slice(&[color, color, color, 0xFF]);
@@ -297,7 +306,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         unsafe {
             for y in block_y..block_y + height {
                 let y_offset = y * self.width;
-                let prev = self.depth_buffer.get_unchecked_mut(
+                let prev = self.depth_buffer.depth_buffer.get_unchecked_mut(
                     (y_offset + block_x) as usize..(y_offset + block_x + width) as usize,
                 );
                 for prev_value in prev.iter_mut() {
@@ -316,6 +325,33 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             Some(output)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn set_fragments_block(
+        &mut self,
+        (block_x, block_y): (u32, u32),
+        (block_width, block_height): (u32, u32),
+        depth_pass: &[Option<f32>],
+        interp: Vec<Vec<f32>>,
+        fs: &'fs FragmentShaderFunction,
+    ) {
+        let mut idx = 0;
+        let mut interp = interp.into_iter();
+        for y in block_y..block_y + block_height {
+            for x in block_x..block_x + block_width {
+                if depth_pass[idx].is_some() {
+                    self.set_fragment(
+                        x,
+                        y,
+                        Fragment {
+                            interpolants: interp.next().unwrap(),
+                            shader: fs,
+                        },
+                    );
+                    idx += 1;
+                }
+            }
         }
     }
 

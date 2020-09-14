@@ -94,6 +94,7 @@ fn main() -> Result<(), Error> {
                 // Draw the current frame
                 fuwa.clear();
                 fuwa.clear_depth_buffer();
+                fuwa.clear_fragments();
 
                 let rotation = Mat3::from_rotation_x(rot_x)
                     * Mat3::from_rotation_y(rot_y)

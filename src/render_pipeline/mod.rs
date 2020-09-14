@@ -17,3 +17,6 @@ pub use vertex::*;
 
 mod vertex_descriptor;
 pub use vertex_descriptor::*;
+
+mod depth_buffer;
+pub use depth_buffer::*;
