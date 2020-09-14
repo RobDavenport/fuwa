@@ -3,6 +3,8 @@ use crate::{FragmentShaderFunction, FuwaPtr, Triangle};
 use glam::*;
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
+use wide::{f32x4, f32x8};
+use bytemuck::cast;
 
 const BLOCK_WIDTH: u32 = 8;
 const BLOCK_HEIGHT: u32 = 8;
@@ -60,30 +62,14 @@ fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
 
                     //TODO: Optimize this with a single edge check?
                     //Evaluate half-space for block edges
-                    //Rembeber, the C edge function uses opposite point indexes
-                    //Edge A - 0->1
-                    let a00 = c0 + (dx12 * block_y0 as f32) - (dy12 * block_x0 as f32);
-                    let a10 = c0 + (dx12 * block_y0 as f32) - (dy12 * block_x1 as f32);
-                    let a01 = c0 + (dx12 * block_y1 as f32) - (dy12 * block_x0 as f32);
-                    let a11 = c0 + (dx12 * block_y1 as f32) - (dy12 * block_x1 as f32);
-                    let a_in = BlockEdgeResult::check(a00, a01, a10, a11);
-
-                    //Edge B - 1->2
-                    let b00 = c1 + (dx20 * block_y0 as f32) - (dy20 * block_x0 as f32);
-                    let b10 = c1 + (dx20 * block_y0 as f32) - (dy20 * block_x1 as f32);
-                    let b01 = c1 + (dx20 * block_y1 as f32) - (dy20 * block_x0 as f32);
-                    let b11 = c1 + (dx20 * block_y1 as f32) - (dy20 * block_x1 as f32);
-                    let b_in = BlockEdgeResult::check(b00, b01, b10, b11);
-
-                    //Edge C - 2->0
-                    let c00 = c2 + (dx01 * block_y0 as f32) - (dy01 * block_x0 as f32);
-                    let c10 = c2 + (dx01 * block_y0 as f32) - (dy01 * block_x1 as f32);
-                    let c01 = c2 + (dx01 * block_y1 as f32) - (dy01 * block_x0 as f32);
-                    let c11 = c2 + (dx01 * block_y1 as f32) - (dy01 * block_x1 as f32);
-                    let c_in = BlockEdgeResult::check(c00, c01, c10, c11);
+                    let y_vec = f32x4::from([block_y0 as f32, block_y0 as f32, block_y1 as f32, block_y1 as f32]);
+                    let x_vec = f32x4::from([block_x0 as f32, block_x1 as f32, block_x0 as f32, block_x1 as f32]);
+                    let a_set = c0 + (dx12 * y_vec) - (dy12 * x_vec);
+                    let b_set = c1 + (dx20 * y_vec) - (dy20 * x_vec);
+                    let c_set = c2 + (dx01 * y_vec) - (dy01 * x_vec);
 
                     use BlockEdgeResult::*;
-                    match (a_in, b_in, c_in) {
+                    match (BlockEdgeResult::check(&a_set), BlockEdgeResult::check(&b_set), BlockEdgeResult::check(&c_set)) {
                         //Just skip any blocks completely outside
                         (Outside, Outside, Outside) => {
                             if row_already_draw {
@@ -94,6 +80,10 @@ fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
                         //We can draw this block in one go
                         (Inside, Inside, Inside) => {
                             row_already_draw = true;
+
+                            let a00 = cast::<_, [f32; 4]>(a_set)[0];
+                            let b00 = cast::<_, [f32; 4]>(b_set)[0];
+                            let c00 = cast::<_, [f32; 4]>(c_set)[0];
 
                             let depths = get_interpolated_z_block(
                                 triangle,
@@ -135,6 +125,10 @@ fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
                             //have to draw the block pixel-by-pixel
                             //These are constants for our new starting point at bx0, by0
                             //and were calculated previously
+                            let a00 = cast::<_, [f32; 4]>(a_set)[0];
+                            let b00 = cast::<_, [f32; 4]>(b_set)[0];
+                            let c00 = cast::<_, [f32; 4]>(c_set)[0];
+
                             let mut cy0 = a00;
                             let mut cy1 = b00;
                             let mut cy2 = c00;
@@ -194,15 +188,10 @@ enum BlockEdgeResult {
 }
 
 impl BlockEdgeResult {
-    fn check(p00: f32, p01: f32, p10: f32, p11: f32) -> Self {
-        match (
-            p00.is_sign_positive(),
-            p01.is_sign_positive(),
-            p10.is_sign_positive(),
-            p11.is_sign_positive(),
-        ) {
-            (true, true, true, true) => Self::Inside,
-            (false, false, false, false) => Self::Outside,
+    fn check(edge: &f32x4) -> Self {
+        match cast::<_, [i32; 4]>(edge.cmp_ge(f32x4::ZERO)) {
+            [-1, -1, -1, -1] => Self::Inside,
+            [0, 0, 0, 0] => Self::Outside,
             _ => Self::Partial,
         }
     }
