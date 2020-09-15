@@ -1,5 +1,5 @@
 pub struct VertexDescriptor {
-    pub(crate) fields: Vec<VertexDescriptorField>,
+    //fields: Vec<VertexDescriptorField>,
     pub(crate) stride: usize,
     pub(crate) position_index: usize,
 }
@@ -14,7 +14,7 @@ impl VertexDescriptor {
     pub fn new(fields: Vec<VertexDescriptorField>, position_index: usize) -> Self {
         let stride = fields.iter().fold(0, |a, b| a + b.size());
         Self {
-            fields,
+            //fields,
             stride,
             position_index,
         }

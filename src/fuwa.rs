@@ -390,32 +390,31 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         }
     }
 
-    //TODO: Perf this
-    pub(crate) fn set_pixels_block(
-        &mut self,
-        (block_x, block_y): (u32, u32),
-        (width, height): (u32, u32),
-        depth_pass: &[Option<f32>],
-        interp: Vec<Vec<f32>>,
-        fragment_shader: &FragmentShaderFunction,
-    ) {
-        //optick::event!();
-        let mut idx = 0;
-        for y in block_y..block_y + height {
-            for x in block_x..block_x + width {
-                if depth_pass[idx].is_some() {
-                    self.set_pixel_unchecked(
-                        x,
-                        y,
-                        &(fragment_shader)(&interp[idx], &self.uniforms),
-                    );
-                    idx += 1;
-                }
-            }
-        }
-    }
+    // pub(crate) fn set_pixels_block(
+    //     &mut self,
+    //     (block_x, block_y): (u32, u32),
+    //     (width, height): (u32, u32),
+    //     depth_pass: &[Option<f32>],
+    //     interp: Vec<Vec<f32>>,
+    //     fragment_shader: &FragmentShaderFunction,
+    // ) {
+    //     //optick::event!();
+    //     let mut idx = 0;
+    //     for y in block_y..block_y + height {
+    //         for x in block_x..block_x + width {
+    //             if depth_pass[idx].is_some() {
+    //                 self.set_pixel_unchecked(
+    //                     x,
+    //                     y,
+    //                     &(fragment_shader)(&interp[idx], &self.uniforms),
+    //                 );
+    //                 idx += 1;
+    //             }
+    //         }
+    //     }
+    // }
 
-    pub fn load_texture(&mut self, path: String, set: u8, binding: u8) {
+    pub fn load_texture(&mut self, path: String, _set: u8, _binding: u8) {
         let image_bytes = std::fs::read(format!("./resources/{}", &path)).unwrap();
         let image_data = image::load_from_memory(&image_bytes).unwrap();
         let image_data = image_data.as_rgba8().unwrap();

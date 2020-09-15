@@ -1,4 +1,4 @@
-use super::{Fragment, RasterBoundingBox};
+use super::RasterBoundingBox;
 use crate::{FragmentShaderFunction, FuwaPtr, Triangle};
 use bytemuck::cast;
 use glam::*;
@@ -98,6 +98,7 @@ fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
                         }
                     }
 
+                    //TODO: SIMD-ify this block next
                     //We can draw this block in one go
                     (Inside, Inside, Inside) => {
                         row_already_draw = true;
@@ -242,13 +243,14 @@ fn get_interp_values_simd(w0: &f32x8, w1: &f32x8, w2: &f32x8) -> (f32x8, f32x8) 
     (l1, l2)
 }
 
-fn get_interpolated_z(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> f32 {
-    //optick::event!();
+//TODO: FIX THIS LATER
+// fn get_interpolated_z(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> f32 {
+//     //optick::event!();
 
-    let (l1, l2) = get_interp_values(w0, w1, w2);
-    let [z0, zs10, zs20] = triangle.get_z_diffs();
-    z0 + (l1 * zs10) + (l2 * zs20)
-}
+//     let (l1, l2) = get_interp_values(w0, w1, w2);
+//     let [z0, zs10, zs20] = triangle.get_z_diffs();
+//     z0 + (l1 * zs10) + (l2 * zs20)
+// }
 
 fn get_interpolated_z_simd(triangle: &Triangle, w0: &f32x8, w1: &f32x8, w2: &f32x8) -> f32x8 {
     //optick::event!();
@@ -258,20 +260,20 @@ fn get_interpolated_z_simd(triangle: &Triangle, w0: &f32x8, w1: &f32x8, w2: &f32
     *z0 + (l1 * *zs10) + (l2 * *zs20)
 }
 
-//TODO: Can I use SIMD here?
-fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32, pixel_z: f32) -> Vec<f32> {
-    //optick::event!();
+//TODO: FIX THIS LATER
+// fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32, pixel_z: f32) -> Vec<f32> {
+//     //optick::event!();
 
-    let (l1, l2) = get_interp_values(w0, w1, w2);
-    let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
-    let len = p0.len();
+//     let (l1, l2) = get_interp_values(w0, w1, w2);
+//     let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
+//     let len = p0.len();
 
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        out.push((p0[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_z);
-    }
-    out
-}
+//     let mut out = Vec::with_capacity(len);
+//     for i in 0..len {
+//         out.push((p0[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_z);
+//     }
+//     out
+// }
 
 fn interpolate_triangle_simd(
     triangle: &Triangle,

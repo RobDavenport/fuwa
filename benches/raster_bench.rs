@@ -76,7 +76,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         fuwa.clear_fragments();
 
         pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
-        
+
         b.iter(|| {
             fuwa.render().unwrap();
         });

@@ -22,7 +22,7 @@ impl FragmentShader {
         }
     }
 
-    pub fn textured(set: u8, binding: u8) -> Self {
+    pub fn textured(_set: u8, _binding: u8) -> Self {
         Self {
             fragment_shader: Box::new(move |data, uniforms| {
                 //sample_2d(data[3], data[4], uniforms.get::<Texture>(&set, &binding))
