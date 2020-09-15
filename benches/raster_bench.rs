@@ -50,21 +50,23 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
 
     c.bench_function("render_scene", |b| {
+        let mut active_data = colored_cube.clone();
+        pipeline.bind_translation(translation);
+        pipeline.bind_rotation(rotation);
+
+        let active_model = IndexedVertexList {
+            index_list: &cube_indices,
+            vertex_list: &mut active_data,
+        };
+
         b.iter(|| {
             fuwa.clear();
             fuwa.clear_depth_buffer();
-
-            let mut active_data = colored_cube.clone();
-
-            let active_model = IndexedVertexList {
-                index_list: black_box(&cube_indices),
-                vertex_list: black_box(&mut active_data),
-            };
-
-            pipeline.bind_translation(black_box(translation));
-            pipeline.bind_rotation(black_box(rotation));
+            fuwa.clear_fragments();
 
             pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+
+            fuwa.render().unwrap();
         });
     });
 
