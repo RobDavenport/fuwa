@@ -30,11 +30,27 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 
 TODO:
-1. Investigate "wide" and SIMD related crates
+1. Vertex Shader - this could fix the bad perf in fragments ?
+1. Look into better memory allocators like (bumpalo, toolshed, typed_arena)
+1. Slotmap? Slab? (especially for textures/shaders)
 1. Improve the way of handling textures and sharders instead of hard coded things
-1. Vertex Shader & Geometry Shader
-1. Speed up rasterization algo for special case triangles
-1. Set up "Scenes" testing multiple changes
+1. Geometry Shader
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
+1. Try (smallvec, tinyvec, arrayvec) in raster function
 1. Investigate pros/cons of fixed point
-1. Find/build a more realistic benchmark 
+1. Continue SIMDifying Rasterizer
+1. Add special logic/early outs for special shaped triangle BBs
+
+SCENES TO MAKE:
+1. Complex Scene
+1. Triangle (Colored)
+1. Triangle (Textured)
+1. Plane
+1. Cube
+1. Depth Tester
+
+BENCHMARKS TO MAKE:
+1. Complex Scene
+1. Many Small Triangles
+1. Many Big triangles
+1. Depth buffer strain

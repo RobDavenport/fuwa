@@ -2,7 +2,7 @@ use super::Texture;
 use crate::rasterization::{Fragment, FragmentBuffer};
 use crate::render_pipeline::DepthBuffer;
 use crate::{FragmentShaderFunction, Uniforms};
-use bytemuck::cast;
+use bytemuck::cast_ref;
 use glam::*;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
@@ -222,10 +222,10 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         let top_right = vec3a(bottom_right.x(), top_left.y(), 0.);
         let bottom_left = vec3a(top_left.x(), bottom_right.y(), 0.);
 
-        self.draw_line(top_left.clone(), top_right.clone(), color);
-        self.draw_line(top_right.clone(), bottom_right.clone(), color);
-        self.draw_line(bottom_right.clone(), bottom_left.clone(), color);
-        self.draw_line(bottom_left.clone(), top_left.clone(), color);
+        self.draw_line(top_left, top_right, color);
+        self.draw_line(top_right, bottom_right, color);
+        self.draw_line(bottom_right, bottom_left, color);
+        self.draw_line(bottom_left, top_left, color);
     }
 
     pub fn draw_line(&mut self, mut start: Vec3A, mut end: Vec3A, color: &[u8; 4]) {
@@ -328,7 +328,7 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
             }
         }
 
-        if output.len() > 0 {
+        if !output.is_empty() {
             Some(output)
         } else {
             None
@@ -375,8 +375,8 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
                 let mut params = Vec::with_capacity(len);
-                for i in 0..len {
-                    params.push(cast::<_, [f32; 8]>(interp[i])[pixel]);
+                for row in interp.iter() {
+                    params.push(cast_ref::<_, [f32; 8]>(row)[pixel]);
                 }
                 self.set_fragment(
                     pixel_x + pixel as u32,
