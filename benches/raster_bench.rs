@@ -49,16 +49,16 @@ fn criterion_benchmark(c: &mut Criterion) {
         vec3(0.71735615, 0.39339018, 0.5750168),
     );
 
-    c.bench_function("render_scene", |b| {
-        let mut active_data = colored_cube.clone();
-        pipeline.bind_translation(translation);
-        pipeline.bind_rotation(rotation);
+    let mut active_data = colored_cube.clone();
+    pipeline.bind_translation(translation);
+    pipeline.bind_rotation(rotation);
 
-        let active_model = IndexedVertexList {
-            index_list: &cube_indices,
-            vertex_list: &mut active_data,
-        };
+    let active_model = IndexedVertexList {
+        index_list: &cube_indices,
+        vertex_list: &mut active_data,
+    };
 
+    c.bench_function("full_render_loop", |b| {
         b.iter(|| {
             fuwa.clear();
             fuwa.clear_depth_buffer();
@@ -70,205 +70,57 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
     });
 
-    // let cube_verts = fuwa::cube(SIZE);
-    // let tri_verts = fuwa::tri(SIZE);
+    c.bench_function("render_scene", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
 
-    // let cube_indices = fuwa::cube_indices();
-    // let plane_indices = fuwa::plane_indices();
-    // let tri_indices = fuwa::tri_indices();
+        pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+        
+        b.iter(|| {
+            fuwa.render().unwrap();
+        });
+    });
 
-    // let offset = glam::vec3a(0., 0., 2.);
+    c.bench_function("rasterize_scene", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
 
-    // let mut draw_tri = tri_verts.clone();
-    // draw_tri.iter_mut().for_each(|vertex| {
-    //     *vertex += black_box(offset);
-    //     fuwa.transform_screen_space_perspective(vertex);
-    // });
+        b.iter(|| {
+            pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+        });
+    });
 
-    // let mut draw_cube = cube_verts.clone();
-    // draw_cube.iter_mut().for_each(|vertex| {
-    //     *vertex += black_box(offset);
-    //     fuwa.transform_screen_space_perspective(vertex);
-    // });
+    c.bench_function("clear_screen", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
 
-    // c.bench_function("clear_screen", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear();
-    //     });
-    // });
+        b.iter(|| {
+            fuwa.clear();
+        });
+    });
 
-    // c.bench_function("clear_screen_color", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear_color(black_box(&black));
-    //     });
-    // });
+    c.bench_function("clear_depth_buffer", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
 
-    // c.bench_function("clear_depth_buffer", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear_depth_buffer();
-    //     })
-    // });
+        b.iter(|| {
+            fuwa.clear_depth_buffer();
+        });
+    });
 
-    // c.bench_function("render", |b| {
-    //     b.iter(|| {
-    //         fuwa.render().unwrap();
-    //     });
-    // });
+    c.bench_function("clear_fragments", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
 
-    // c.bench_function("clear_screen + render", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.render().unwrap();
-    //     });
-    // });
-
-    // c.bench_function("calculate raster bb", |b| {
-
-    //     let points = &[
-    //         cube_verts[cube_indices[0] as usize],
-    //         cube_verts[cube_indices[1] as usize],
-    //         cube_verts[cube_indices[2] as usize]];
-
-    //     b.iter(|| {
-    //         fuwa.calculate_raster_bb(black_box(points));
-    //     });
-    // });
-
-    // c.bench_function("draw_triangle_fast", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_triangle_fast(black_box(&draw_tri), black_box(&white));
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("draw_triangle_parallel", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_triangle_parallel(black_box(&draw_tri), black_box(&white));
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("draw_indexed cube", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_indexed(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("draw_indexed cube parallel", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-    //         fuwa.draw_indexed_parallel(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("transform cube", |b| {
-    //     b.iter(|| {
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-    //     })
-    // });
-
-    // c.bench_function("transform parallel cube", |b| {
-    //     b.iter(|| {
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.par_iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-    //     })
-    // });
-
-    // c.bench_function("transform + render cube", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-
-    //         fuwa.draw_indexed(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("transform + render cube (par)", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-
-    //         fuwa.draw_indexed_parallel(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("transform (par) + render cube", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.par_iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-
-    //         fuwa.draw_indexed(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
-
-    // c.bench_function("transform (par) + render cube (par)", |b| {
-    //     b.iter(|| {
-    //         fuwa.clear(black_box(&black));
-
-    //         let mut my_verts = black_box(cube_verts);
-    //         my_verts.par_iter_mut().for_each(|vertex| {
-    //             *vertex += black_box(offset);
-    //             fuwa.transform_screen_space_perspective(vertex);
-    //         });
-
-    //         fuwa.draw_indexed_parallel(
-    //             black_box(&draw_cube),
-    //             black_box(&cube_indices),
-    //             black_box(&white),
-    //         );
-    //         fuwa.render().unwrap();
-    //     })
-    // });
+        b.iter(|| {
+            fuwa.clear_fragments();
+        });
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
