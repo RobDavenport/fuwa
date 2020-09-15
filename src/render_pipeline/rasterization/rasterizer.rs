@@ -71,7 +71,7 @@ fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
                     use BlockEdgeResult::*;
                     match (BlockEdgeResult::check(&a_set), BlockEdgeResult::check(&b_set), BlockEdgeResult::check(&c_set)) {
                         //Just skip any blocks completely outside
-                        (Outside, Outside, Outside) => {
+                        (Outside, _, _) | (_, Outside, _) | (_, _, Outside) => {
                             if row_already_draw {
                                 return;
                             }
