@@ -1,4 +1,6 @@
+use bytemuck::cast;
 use rayon::prelude::*;
+use wide::f32x8;
 pub(crate) struct DepthBuffer {
     pub(crate) depth_buffer: Vec<f32>,
     //TODO: Implement depth functions like GREATER THAN or LESS THAN
@@ -27,6 +29,22 @@ impl DepthBuffer {
                 true
             } else {
                 false
+            }
+        }
+    }
+
+    pub fn try_set_depth_simd(&mut self, index: usize, depths: &f32x8) -> Option<f32x8> {
+        unsafe {
+            let prev = f32x8::from(self.depth_buffer.get_unchecked(index..index + 8));
+            let depth_pass_mask = depths.cmp_lt(prev);
+
+            if depth_pass_mask.any() {
+                self.depth_buffer
+                    .get_unchecked_mut(index..index + 8)
+                    .copy_from_slice(&cast::<_, [f32; 8]>(depth_pass_mask.blend(*depths, prev)));
+                Some(depth_pass_mask)
+            } else {
+                None
             }
         }
     }

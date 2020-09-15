@@ -2,6 +2,7 @@ use super::Texture;
 use crate::rasterization::{Fragment, FragmentBuffer};
 use crate::render_pipeline::DepthBuffer;
 use crate::{FragmentShaderFunction, Uniforms};
+use bytemuck::cast;
 use glam::*;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
@@ -9,6 +10,7 @@ use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
 use std::marker::{Send, Sync};
+use wide::f32x8;
 
 pub struct Fuwa<'fs, W: HasRawWindowHandle> {
     pub width: u32,
@@ -120,6 +122,11 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
     pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
         self.depth_buffer
             .try_set_depth((x + y * self.width) as usize, depth)
+    }
+
+    pub fn try_set_depth_simd(&mut self, x: u32, y: u32, depths: &f32x8) -> Option<f32x8> {
+        self.depth_buffer
+            .try_set_depth_simd((x + y * self.width) as usize, depths)
     }
 
     pub(crate) fn set_fragment(&mut self, x: u32, y: u32, frag: Fragment<'fs>) {
@@ -351,6 +358,34 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
                     );
                     idx += 1;
                 }
+            }
+        }
+    }
+
+    pub(crate) fn set_fragments_simd(
+        &mut self,
+        pixel_x: u32,
+        pixel_y: u32,
+        interp: Vec<f32x8>,
+        depth_pass: f32x8,
+        fs: &'fs FragmentShaderFunction,
+    ) {
+        let depth_pass = depth_pass.move_mask();
+        let len = interp.len();
+        for pixel in 0..8 {
+            if 1 << pixel & depth_pass != 0 {
+                let mut params = Vec::with_capacity(len);
+                for i in 0..len {
+                    params.push(cast::<_, [f32; 8]>(interp[i])[pixel]);
+                }
+                self.set_fragment(
+                    pixel_x + pixel as u32,
+                    pixel_y,
+                    Fragment {
+                        interpolants: params,
+                        shader: fs,
+                    },
+                )
             }
         }
     }

@@ -38,7 +38,10 @@ fn main() -> Result<(), Error> {
     fuwa.load_texture("box.png".to_string(), set, binding);
 
     let cube_data = unit_cube_uvs_into_data(1.);
-    let cube_indices = unit_cube_indices();
+     let cube_indices = unit_cube_indices();
+
+    //let cube_data = textured_plane(1.);
+    //let cube_indices = tri_indices();
 
     let mut offset = Vec3A::new(0., 0., 2.0);
 
