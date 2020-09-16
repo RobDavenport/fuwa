@@ -1,8 +1,11 @@
 use super::Texture;
-use crate::rasterization::{Fragment, FragmentBuffer};
 use crate::render_pipeline::DepthBuffer;
-use crate::{FragmentShaderFunction, Uniforms};
-use bytemuck::cast_ref;
+use crate::FSInput;
+use crate::Uniforms;
+use crate::{
+    rasterization::{Fragment, FragmentBuffer},
+    FragmentShader,
+};
 use glam::*;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
@@ -12,7 +15,7 @@ use rayon::prelude::*;
 use std::marker::{Send, Sync};
 use wide::f32x8;
 
-pub struct Fuwa<'fs, W: HasRawWindowHandle> {
+pub struct Fuwa<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle> {
     pub width: u32,
     pub height: u32,
     pub pixel_count: u32,
@@ -20,7 +23,7 @@ pub struct Fuwa<'fs, W: HasRawWindowHandle> {
     pub y_factor: f32,
     pub pixels: Pixels<W>,
     pub(crate) depth_buffer: DepthBuffer,
-    pub(crate) fragment_buffer: FragmentBuffer<'fs>,
+    pub(crate) fragment_buffer: FragmentBuffer<F, S>,
     pub(crate) uniforms: Uniforms,
     pub raster_par_count: usize,
 }
@@ -39,13 +42,15 @@ lazy_static! {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct FuwaPtr<'fs, W: HasRawWindowHandle>(pub(crate) *mut Fuwa<'fs, W>);
+pub(crate) struct FuwaPtr<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle>(
+    pub(crate) *mut Fuwa<F, S, W>,
+);
 
-unsafe impl<'fs, W: HasRawWindowHandle> Send for FuwaPtr<'fs, W> {}
-unsafe impl<'fs, W: HasRawWindowHandle> Sync for FuwaPtr<'fs, W> {}
+unsafe impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle> Send for FuwaPtr<F, S, W> {}
+unsafe impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle> Sync for FuwaPtr<F, S, W> {}
 
-impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
-    pub(crate) fn get_self_ptr(&mut self) -> FuwaPtr<'fs, W> {
+impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync> Fuwa<F, S, W> {
+    pub(crate) fn get_self_ptr(&mut self) -> FuwaPtr<F, S, W> {
         FuwaPtr(self as *mut Self)
     }
 
@@ -129,12 +134,12 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
             .try_set_depth_simd((x + y * self.width) as usize, depths)
     }
 
-    pub(crate) fn set_fragment(&mut self, x: u32, y: u32, frag: Fragment<'fs>) {
+    pub(crate) fn set_fragment(&mut self, x: u32, y: u32, frag: Fragment<F, S>) {
         self.fragment_buffer
             .set_fragment((x + y * self.width) as usize, frag);
     }
 
-    pub fn render(&mut self) -> Result<(), Error> {
+    pub fn render(&mut self) {
         let self_ptr = self.get_self_ptr();
 
         self.fragment_buffer
@@ -146,7 +151,9 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
                     (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms))
                 }
             });
+    }
 
+    pub fn present(&mut self) -> Result<(), Error> {
         self.pixels.render()
     }
 
@@ -271,21 +278,19 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         }
     }
 
-    pub fn transform_screen_space_perspective(&self, vertex: &mut [f32], position_index: usize) {
-        let z_inverse = vertex[position_index + 2].recip();
+    pub fn transform_screen_space_perspective(&self, point: &mut Vec3A, interpolant: &mut F) {
+        let z_inverse = point.z().recip();
 
-        for v in vertex.iter_mut() {
-            *v *= z_inverse;
-        }
+        *interpolant *= z_inverse;
 
-        vertex[position_index] = (vertex[position_index] + 1.) * self.x_factor;
-        vertex[position_index + 1] = (-vertex[position_index + 1] + 1.) * self.y_factor;
-        vertex[position_index + 2] = z_inverse;
+        *point.x_mut() = ((point.x() * z_inverse) + 1.) * self.x_factor;
+        *point.y_mut() = ((-point.y() * z_inverse) + 1.) * self.y_factor;
+        *point.z_mut() = z_inverse;
     }
 
-    pub fn transform_screen_space_orthographic(&self, point: &mut [f32]) {
-        point[0] = (point[0] + 1.) * self.x_factor;
-        point[1] = (-point[1] + 1.) * self.y_factor;
+    pub fn transform_screen_space_orthographic(&self, point: &mut Vec3A) {
+        *point.x_mut() = (point.x() + 1.) * self.x_factor;
+        *point.y_mut() = (-point.y() + 1.) * self.y_factor;
     }
 
     fn check_3d_pixel_within_bounds(&self, pos: &Vec3A) -> bool {
@@ -319,7 +324,7 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
                 for prev_value in prev.iter_mut() {
                     if depths[idx] < *prev_value {
                         *prev_value = depths[idx];
-                        output.push(Some(depths[idx].recip()));
+                        output.push(Some(depths[idx]));
                     } else {
                         output.push(None);
                     }
@@ -340,8 +345,8 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         (block_x, block_y): (u32, u32),
         (block_width, block_height): (u32, u32),
         depth_pass: &[Option<f32>],
-        interp: Vec<Vec<f32>>,
-        fs: &'fs FragmentShaderFunction,
+        interp: Vec<F>,
+        fs: &S,
     ) {
         let mut idx = 0;
         let mut interp = interp.into_iter();
@@ -353,7 +358,7 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
                         y,
                         Fragment {
                             interpolants: interp.next().unwrap(),
-                            shader: fs,
+                            shader: fs.clone(),
                         },
                     );
                     idx += 1;
@@ -366,24 +371,19 @@ impl<'fs, W: HasRawWindowHandle + Send + Sync> Fuwa<'fs, W> {
         &mut self,
         pixel_x: u32,
         pixel_y: u32,
-        interp: Vec<f32x8>,
+        interp: [F; 8],
         depth_pass: f32x8,
-        fs: &'fs FragmentShaderFunction,
+        fs: &S,
     ) {
         let depth_pass = depth_pass.move_mask();
-        let len = interp.len();
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
-                let mut params = Vec::with_capacity(len);
-                for row in interp.iter() {
-                    params.push(cast_ref::<_, [f32; 8]>(row)[pixel]);
-                }
                 self.set_fragment(
-                    pixel_x + pixel as u32,
+                    pixel_x + pixel,
                     pixel_y,
                     Fragment {
-                        interpolants: params,
-                        shader: fs,
+                        interpolants: interp[pixel as usize],
+                        shader: fs.clone(),
                     },
                 )
             }

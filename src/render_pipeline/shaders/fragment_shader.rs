@@ -1,34 +1,71 @@
 use crate::{Texture, Uniforms};
 use glam::*;
 use lazy_static::lazy_static;
+use std::ops::*;
 
 lazy_static! {
     static ref U8FASTVEC: Vec3A = Vec3A::splat(255.);
 }
 
-pub type FragmentShaderFunction = Box<dyn Fn(&[f32], &Uniforms) -> [u8; 4] + Send + Sync>;
+pub trait FSInput:
+    Clone
+    + Copy
+    + Sized
+    + Send
+    + Sync
+    + Add<Self, Output = Self>
+    + AddAssign<Self>
+    + Sub<Self, Output = Self>
+    + SubAssign<Self>
+    + Mul<Self, Output = Self>
+    + MulAssign<Self>
+    + Div<Self, Output = Self>
+    + DivAssign<Self>
+    + Mul<f32, Output = Self>
+    + MulAssign<f32>
+    + Div<f32, Output = Self>
+    + DivAssign<f32>
+{
+}
+impl FSInput for Vec3A {}
+impl FSInput for Vec2 {}
 
-pub struct FragmentShader {
-    pub fragment_shader: FragmentShaderFunction,
+pub type FragmentShaderFunction<F> = Box<dyn Fn(F, &Uniforms) -> [u8; 4] + Send + Sync>;
+
+pub trait FragmentShader<F: FSInput>: Send + Sync + Clone {
+    //pub fragment_shader: FragmentShaderFunction<F>,
+    fn fragment_shader_fn(&self, fs_in: F, uniforms: &Uniforms) -> [u8; 4];
 }
 
-impl FragmentShader {
-    pub fn color_blend() -> Self {
-        Self {
-            fragment_shader: Box::new(|data, _| {
-                let c = Vec3A::from([data[3], data[4], data[5]]) * *U8FASTVEC;
-                [c[0] as u8, c[1] as u8, c[2] as u8, 0xFF]
-            }),
-        }
+#[derive(Clone)]
+pub struct ColorBlend {}
+impl ColorBlend {
+    pub fn new() -> Self {
+        Self {}
     }
+}
+impl FragmentShader<Vec3A> for ColorBlend {
+    fn fragment_shader_fn(&self, fs_in: Vec3A, _: &Uniforms) -> [u8; 4] {
+        let c = fs_in * *U8FASTVEC;
+        [c[0] as u8, c[1] as u8, c[2] as u8, 0xFF]
+    }
+}
 
-    pub fn textured(_set: u8, _binding: u8) -> Self {
-        Self {
-            fragment_shader: Box::new(move |data, uniforms| {
-                //sample_2d(data[3], data[4], uniforms.get::<Texture>(&set, &binding))
-                sample_2d(data[3], data[4], uniforms.get_texture())
-            }),
-        }
+#[derive(Clone)]
+pub struct Textured {
+    pub set: u8,
+    pub binding: u8,
+}
+
+impl Textured {
+    pub fn new(set: u8, binding: u8) -> Self {
+        Self { set, binding }
+    }
+}
+
+impl FragmentShader<Vec2> for Textured {
+    fn fragment_shader_fn(&self, fs_in: Vec2, uniforms: &Uniforms) -> [u8; 4] {
+        sample_2d(fs_in[0], fs_in[1], uniforms.get_texture())
     }
 }
 

@@ -1,3 +1,5 @@
+use crate::pipeline;
+use fragment_shader;
 use fuwa::*;
 use glam::*;
 use pixels::Error;
@@ -34,7 +36,14 @@ fn main() -> Result<(), Error> {
     let set = 0;
     let binding = 0;
 
-    let mut pipeline = Pipeline::new(vertex_descriptor, FragmentShader::textured(set, binding));
+    let mut vertex_shader = BasicVertexShader::new();
+    let mut fragment_shader = Textured::new(set, binding);
+    // let pipeline = Pipeline::new(
+    //     vertex_descriptor,
+    //     fragment_shader::textured(set, binding),
+    //     Box::new(vertex_shader),
+    // );
+
     fuwa.load_texture("box.png".to_string(), set, binding);
 
     let cube_data = unit_cube_uvs_into_data(1.);
@@ -107,16 +116,18 @@ fn main() -> Result<(), Error> {
 
                 let active_model = IndexedVertexList {
                     index_list: &cube_indices,
-                    vertex_list: &mut active_data,
+                    raw_vertex_list: &mut active_data,
                 };
 
-                pipeline.bind_rotation(rotation);
-                pipeline.bind_translation(offset);
+                vertex_shader.bind_rotation(rotation);
+                vertex_shader.bind_translation(offset);
 
-                pipeline.draw(&mut fuwa, &active_model);
+                pipeline::draw(&mut fuwa, &vertex_shader, &fragment_shader, &active_model);
+
+                fuwa.render();
 
                 if fuwa
-                    .render()
+                    .present()
                     //.render_depth_buffer()
                     .map_err(|e| println!("render() failed: {}", e))
                     .is_err()
@@ -131,5 +142,5 @@ fn main() -> Result<(), Error> {
             }
             _ => (),
         }
-    })
+    });
 }

@@ -30,10 +30,9 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 
 TODO:
-1. Vertex Shader - this could fix the bad perf in fragments ?
 1. Look into better memory allocators like (bumpalo, toolshed, typed_arena)
 1. Slotmap? Slab? (especially for textures/shaders)
-1. Improve the way of handling textures and sharders instead of hard coded things
+1. Improve the way of handling textures instead of hard coded things
 1. Geometry Shader
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
 1. Try (smallvec, tinyvec, arrayvec) in raster function

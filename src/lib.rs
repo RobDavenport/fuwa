@@ -120,17 +120,13 @@ pub fn cube_indices() -> [usize; 36] {
     ]
 }
 
-pub fn unit_cube_uvs_into_data(size: f32) -> Vec<f32> {
+pub fn unit_cube_uvs_into_data(size: f32) -> Vec<[f32; 5]> {
     let verts = unit_cube_verts(size);
     let uvs = unit_cube_uvs();
 
     let mut output = Vec::with_capacity((verts.len() * 3) + uvs.len());
     for (i, vert) in verts.iter().enumerate() {
-        output.push(vert.x());
-        output.push(vert.y());
-        output.push(vert.z());
-        output.push(uvs[i * 2]);
-        output.push(uvs[(i * 2) + 1]);
+        output.push([vert.x(), vert.y(), vert.z(), uvs[i * 2], uvs[(i * 2) + 1]])
     }
 
     output
@@ -222,7 +218,7 @@ pub fn colored_triangle_indices() -> [usize; 3] {
     [0, 1, 2]
 }
 
-pub fn colored_cube(size: f32) -> Vec<f32> {
+pub fn colored_cube(size: f32) -> Vec<[f32; 6]> {
     let cube = cube(size);
 
     let mut out = Vec::with_capacity(cube.len() * 6);
@@ -237,13 +233,15 @@ pub fn colored_cube(size: f32) -> Vec<f32> {
     ];
 
     cube.iter().enumerate().for_each(|(idx, vertex)| {
-        out.push(vertex.x());
-        out.push(vertex.y());
-        out.push(vertex.z());
         let color = colors[idx % colors.len()];
-        out.push(color[0] as f32 / 255.);
-        out.push(color[1] as f32 / 255.);
-        out.push(color[2] as f32 / 255.);
+        out.push([
+            vertex.x(),
+            vertex.y(),
+            vertex.z(),
+            color[0] as f32 / 255.,
+            color[1] as f32 / 255.,
+            color[2] as f32 / 255.,
+        ])
     });
 
     out

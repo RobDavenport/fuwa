@@ -1,4 +1,5 @@
 use super::RasterBoundingBox;
+use crate::{FSInput, FragmentShader};
 use crate::{FragmentShaderFunction, FuwaPtr, Triangle};
 use bytemuck::cast;
 use glam::*;
@@ -18,10 +19,10 @@ const INNER_STAMP_HEIGHT: u32 = 1;
 const OUTER_BLOCK_WIDTH: u32 = 16;
 const OUTER_BLOCK_HEIGHT: u32 = 16;
 
-pub(crate) fn triangle<'fs, W: HasRawWindowHandle + Send + Sync>(
-    fuwa: FuwaPtr<'fs, W>,
-    triangle: &Triangle,
-    fs: &'fs FragmentShaderFunction,
+pub(crate) fn triangle<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync>(
+    fuwa: FuwaPtr<F, S, W>,
+    triangle: &Triangle<F>,
+    fs: &S,
 ) {
     let points2d = triangle.get_points_as_vec2();
     let bb = unsafe { (*fuwa.0).calculate_raster_bb(&points2d) };
@@ -29,10 +30,14 @@ pub(crate) fn triangle<'fs, W: HasRawWindowHandle + Send + Sync>(
     rasterize_triangle_blocks(fuwa, triangle, fs, bb)
 }
 
-fn rasterize_triangle_blocks<'fs, W: HasRawWindowHandle + Send + Sync>(
-    fuwa: FuwaPtr<'fs, W>,
-    triangle: &Triangle,
-    fs: &'fs FragmentShaderFunction,
+fn rasterize_triangle_blocks<
+    F: FSInput,
+    S: FragmentShader<F>,
+    W: HasRawWindowHandle + Send + Sync,
+>(
+    fuwa: FuwaPtr<F, S, W>,
+    triangle: &Triangle<F>,
+    fs: &S,
     bb: RasterBoundingBox,
 ) {
     //optick::event!();
@@ -252,7 +257,12 @@ fn get_interp_values_simd(w0: &f32x8, w1: &f32x8, w2: &f32x8) -> (f32x8, f32x8) 
 //     z0 + (l1 * zs10) + (l2 * zs20)
 // }
 
-fn get_interpolated_z_simd(triangle: &Triangle, w0: &f32x8, w1: &f32x8, w2: &f32x8) -> f32x8 {
+fn get_interpolated_z_simd<F: FSInput>(
+    triangle: &Triangle<F>,
+    w0: &f32x8,
+    w1: &f32x8,
+    w2: &f32x8,
+) -> f32x8 {
     //optick::event!();
 
     let (l1, l2) = get_interp_values_simd(w0, w1, w2);
@@ -275,30 +285,35 @@ fn get_interpolated_z_simd(triangle: &Triangle, w0: &f32x8, w1: &f32x8, w2: &f32
 //     out
 // }
 
-fn interpolate_triangle_simd(
-    triangle: &Triangle,
+fn interpolate_triangle_simd<F: FSInput>(
+    triangle: &Triangle<F>,
     w0: &f32x8,
     w1: &f32x8,
     w2: &f32x8,
     pixel_zs: f32x8,
-) -> Vec<f32x8> {
+) -> [F; 8] {
     //optick::event!();
-
-    let pixel_zs = 1. / pixel_zs;
-
     let (l1, l2) = get_interp_values_simd(w0, w1, w2);
     let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
-    let len = p0.len();
 
-    let mut out = Vec::with_capacity(len);
-    for i in 0..len {
-        out.push((p0[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_zs);
-    }
-    out
+    let pixel_zs = cast::<_, [f32; 8]>(1. / pixel_zs);
+    let l1_vec = cast::<_, [f32; 8]>(l1);
+    let l2_vec = cast::<_, [f32; 8]>(l2);
+
+    [
+        (*p0 + (*sub10 * l1_vec[0]) + (*sub20 * l2_vec[0])) * pixel_zs[0],
+        (*p0 + (*sub10 * l1_vec[1]) + (*sub20 * l2_vec[1])) * pixel_zs[1],
+        (*p0 + (*sub10 * l1_vec[2]) + (*sub20 * l2_vec[2])) * pixel_zs[2],
+        (*p0 + (*sub10 * l1_vec[3]) + (*sub20 * l2_vec[3])) * pixel_zs[3],
+        (*p0 + (*sub10 * l1_vec[4]) + (*sub20 * l2_vec[4])) * pixel_zs[4],
+        (*p0 + (*sub10 * l1_vec[5]) + (*sub20 * l2_vec[5])) * pixel_zs[5],
+        (*p0 + (*sub10 * l1_vec[6]) + (*sub20 * l2_vec[6])) * pixel_zs[6],
+        (*p0 + (*sub10 * l1_vec[7]) + (*sub20 * l2_vec[7])) * pixel_zs[7],
+    ]
 }
 
-fn get_interpolated_z_block(
-    triangle: &Triangle,
+fn get_interpolated_z_block<F: FSInput>(
+    triangle: &Triangle<F>,
     w00: (f32, f32, f32),
     dx: (f32, f32, f32),
     dy: (f32, f32, f32),
@@ -327,35 +342,29 @@ fn get_interpolated_z_block(
 }
 
 //TODO: Perf this
-fn get_interpolated_triangle_block(
-    triangle: &Triangle,
+fn get_interpolated_triangle_block<F: FSInput>(
+    triangle: &Triangle<F>,
     w00: (f32, f32, f32),
     dx: (f32, f32, f32),
     dy: (f32, f32, f32),
     (width, height): (u32, u32),
     depth_pass: &[Option<f32>],
-) -> Vec<Vec<f32>> {
-    //optick::event!();
-
+) -> Vec<F> {
     let mut left_interpolator = Vec3A::from(w00);
     let step_x = Vec3A::from(dy);
     let step_y = Vec3A::from(dx);
     let mut counter: usize = 0;
     let [p0s, sub10, sub20] = triangle.get_interpolate_diffs();
-    let len = p0s.len();
 
     let mut out = Vec::with_capacity((width * height) as usize);
     for _ in 0..height {
         let mut x_interpolator = left_interpolator;
         for _ in 0..width {
             if let Some(pixel_depth) = depth_pass[counter] {
-                let mut inner = Vec::with_capacity(len);
+                let pixel_depth = pixel_depth.recip();
                 let (l1, l2) =
                     get_interp_values(x_interpolator[0], x_interpolator[1], x_interpolator[2]);
-                for i in 0..len {
-                    inner.push((p0s[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_depth);
-                }
-                out.push(inner);
+                out.push((*p0s + (*sub10 * l1) + (*sub20 * l2)) * pixel_depth);
             }
             x_interpolator -= step_x;
             counter += 1;

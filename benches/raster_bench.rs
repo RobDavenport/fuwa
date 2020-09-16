@@ -11,7 +11,7 @@ const HEIGHT: u32 = 720;
 
 const SIZE: f32 = 1.0;
 
-fn init_window() -> Fuwa<'static, Window> {
+fn criterion_benchmark(c: &mut Criterion) {
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
@@ -22,18 +22,15 @@ fn init_window() -> Fuwa<'static, Window> {
             .unwrap()
     };
 
-    Fuwa::new(WIDTH, HEIGHT, 4, false, None, &window)
-}
-
-fn criterion_benchmark(c: &mut Criterion) {
-    let mut fuwa = init_window();
+    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, false, None, &window);
 
     let vertex_descriptor = VertexDescriptor::new(
         vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
         0,
     );
 
-    let mut pipeline = Pipeline::new(vertex_descriptor, FragmentShader::color_blend());
+    let frag_shader = ColorBlend::new();
+    let mut vert_shader = BasicVertexShader::new();
 
     let colored_cube = colored_cube(1.);
     let cube_indices = cube_indices();
@@ -50,12 +47,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
 
     let mut active_data = colored_cube.clone();
-    pipeline.bind_translation(translation);
-    pipeline.bind_rotation(rotation);
+    vert_shader.bind_translation(translation);
+    vert_shader.bind_rotation(rotation);
 
     let active_model = IndexedVertexList {
         index_list: &cube_indices,
-        vertex_list: &mut active_data,
+        raw_vertex_list: &mut active_data,
     };
 
     c.bench_function("full_render_loop", |b| {
@@ -64,9 +61,15 @@ fn criterion_benchmark(c: &mut Criterion) {
             fuwa.clear_depth_buffer();
             fuwa.clear_fragments();
 
-            pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+            pipeline::draw(
+                black_box(&mut fuwa),
+                black_box(&vert_shader),
+                black_box(&frag_shader),
+                black_box(&active_model),
+            );
 
-            fuwa.render().unwrap();
+            fuwa.render();
+            fuwa.present();
         });
     });
 
@@ -75,10 +78,34 @@ fn criterion_benchmark(c: &mut Criterion) {
         fuwa.clear_depth_buffer();
         fuwa.clear_fragments();
 
-        pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+        pipeline::draw(
+            black_box(&mut fuwa),
+            black_box(&vert_shader),
+            black_box(&frag_shader),
+            black_box(&active_model),
+        );
 
         b.iter(|| {
-            fuwa.render().unwrap();
+            fuwa.render();
+        });
+    });
+
+    c.bench_function("present_scene", |b| {
+        fuwa.clear();
+        fuwa.clear_depth_buffer();
+        fuwa.clear_fragments();
+
+        pipeline::draw(
+            black_box(&mut fuwa),
+            black_box(&vert_shader),
+            black_box(&frag_shader),
+            black_box(&active_model),
+        );
+
+        fuwa.render();
+
+        b.iter(|| {
+            fuwa.present().unwrap();
         });
     });
 
@@ -88,7 +115,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         fuwa.clear_fragments();
 
         b.iter(|| {
-            pipeline.draw(black_box(&mut fuwa), black_box(&active_model));
+            pipeline::draw(
+                black_box(&mut fuwa),
+                black_box(&vert_shader),
+                black_box(&frag_shader),
+                black_box(&active_model),
+            );
         });
     });
 
