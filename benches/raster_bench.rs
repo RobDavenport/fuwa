@@ -54,7 +54,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             fuwa.clear();
             fuwa.clear_depth_buffer();
-            fuwa.clear_fragments();
 
             pipeline::draw(
                 black_box(&mut fuwa),
@@ -71,7 +70,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("render_scene", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
 
         pipeline::draw(
             black_box(&mut fuwa),
@@ -88,7 +86,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("present_scene", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
 
         pipeline::draw(
             black_box(&mut fuwa),
@@ -107,7 +104,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("rasterize_scene", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
 
         b.iter(|| {
             pipeline::draw(
@@ -122,7 +118,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("clear_screen", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
 
         b.iter(|| {
             fuwa.clear();
@@ -132,20 +127,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("clear_depth_buffer", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
 
         b.iter(|| {
             fuwa.clear_depth_buffer();
-        });
-    });
-
-    c.bench_function("clear_fragments", |b| {
-        fuwa.clear();
-        fuwa.clear_depth_buffer();
-        fuwa.clear_fragments();
-
-        b.iter(|| {
-            fuwa.clear_fragments();
         });
     });
 }

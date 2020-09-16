@@ -120,10 +120,6 @@ impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync> Fuwa
         self.depth_buffer.clear();
     }
 
-    pub fn clear_fragments(&mut self) {
-        self.fragment_buffer.clear();
-    }
-
     pub fn try_set_depth(&mut self, x: u32, y: u32, depth: f32) -> bool {
         self.depth_buffer
             .try_set_depth((x + y * self.width) as usize, depth)
@@ -142,15 +138,18 @@ impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync> Fuwa
     pub fn render(&mut self) {
         let self_ptr = self.get_self_ptr();
 
-        self.fragment_buffer
-            .get_fragments_view()
-            .into_par_iter()
+        unsafe {
+            (*self_ptr.0).fragment_buffer
+            .get_fragments_view_mut()
+            .par_iter_mut()
             .enumerate()
-            .for_each(|(index, fragment)| unsafe {
+            .for_each(|(index, fragment)| {
                 if let Some(frag) = fragment {
-                    (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms))
+                    (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms));
+                    *fragment = None;
                 }
             });
+        }
     }
 
     pub fn present(&mut self) -> Result<(), Error> {

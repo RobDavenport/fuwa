@@ -34,6 +34,7 @@ TODO:
 1. Slotmap? Slab? (especially for textures/shaders)
 1. Improve the way of handling textures instead of hard coded things
 1. Geometry Shader
+1. Fill out "FuwaStats" struct for data logging/analysis
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
 1. Try (smallvec, tinyvec, arrayvec) in raster function
 1. Investigate pros/cons of fixed point
