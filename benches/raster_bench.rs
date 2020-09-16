@@ -24,11 +24,6 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, false, None, &window);
 
-    let vertex_descriptor = VertexDescriptor::new(
-        vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec3],
-        0,
-    );
-
     let frag_shader = ColorBlend::new();
     let mut vert_shader = BasicVertexShader::new();
 

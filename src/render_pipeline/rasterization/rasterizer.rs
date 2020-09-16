@@ -1,6 +1,6 @@
 use super::RasterBoundingBox;
 use crate::{FSInput, FragmentShader};
-use crate::{FragmentShaderFunction, FuwaPtr, Triangle};
+use crate::{FuwaPtr, Triangle};
 use bytemuck::cast;
 use glam::*;
 use lazy_static::lazy_static;

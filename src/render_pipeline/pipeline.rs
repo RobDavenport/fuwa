@@ -1,6 +1,5 @@
 use super::shaders::FragmentShader;
 use super::Triangle;
-use super::VertexDescriptor;
 use crate::{rasterization::rasterizer, Fuwa, IndexedVertexList};
 use crate::{FSInput, VSInput, VertexShader};
 use glam::*;

@@ -1,5 +1,4 @@
 use crate::pipeline;
-use fragment_shader;
 use fuwa::*;
 use glam::*;
 use pixels::Error;
@@ -28,16 +27,12 @@ fn main() -> Result<(), Error> {
     };
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
-    let vertex_descriptor = VertexDescriptor::new(
-        vec![VertexDescriptorField::Vec3, VertexDescriptorField::Vec2],
-        0,
-    );
 
     let set = 0;
     let binding = 0;
 
     let mut vertex_shader = BasicVertexShader::new();
-    let mut fragment_shader = Textured::new(set, binding);
+    let fragment_shader = Textured::new(set, binding);
     // let pipeline = Pipeline::new(
     //     vertex_descriptor,
     //     fragment_shader::textured(set, binding),
