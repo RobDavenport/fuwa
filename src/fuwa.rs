@@ -139,16 +139,17 @@ impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync> Fuwa
         let self_ptr = self.get_self_ptr();
 
         unsafe {
-            (*self_ptr.0).fragment_buffer
-            .get_fragments_view_mut()
-            .par_iter_mut()
-            .enumerate()
-            .for_each(|(index, fragment)| {
-                if let Some(frag) = fragment {
-                    (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms));
-                    *fragment = None;
-                }
-            });
+            (*self_ptr.0)
+                .fragment_buffer
+                .get_fragments_view_mut()
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(index, fragment)| {
+                    if let Some(frag) = fragment {
+                        (*self_ptr.0).set_pixel_by_index(index << 2, &frag.run(&self.uniforms));
+                        *fragment = None;
+                    }
+                });
         }
     }
 
