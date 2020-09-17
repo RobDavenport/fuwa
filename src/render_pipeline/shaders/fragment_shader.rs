@@ -30,10 +30,7 @@ pub trait FSInput:
 impl FSInput for Vec3A {}
 impl FSInput for Vec2 {}
 
-pub type FragmentShaderFunction<F> = Box<dyn Fn(F, &Uniforms) -> [u8; 4] + Send + Sync>;
-
 pub trait FragmentShader<F: FSInput>: Send + Sync + Clone {
-    //pub fragment_shader: FragmentShaderFunction<F>,
     fn fragment_shader_fn(&self, fs_in: F, uniforms: &Uniforms) -> [u8; 4];
 }
 

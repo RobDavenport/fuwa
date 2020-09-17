@@ -1,6 +1,5 @@
 use super::Fragment;
 use crate::{FSInput, FragmentShader};
-use rayon::prelude::*;
 
 pub(crate) struct FragmentBuffer<F: FSInput, S: FragmentShader<F>> {
     fragment_buffer: Vec<Option<Fragment<F, S>>>,

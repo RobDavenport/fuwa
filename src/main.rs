@@ -13,6 +13,15 @@ const HEIGHT: u32 = 720;
 
 const ROT_SPEED: f32 = 0.1;
 
+#[derive(Debug, Eq, PartialEq)]
+enum Scene {
+    TexturedCube,
+    ColorBlendCube,
+    Model,
+    DepthTester,
+    ComplexScene,
+}
+
 fn main() -> Result<(), Error> {
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
@@ -27,6 +36,8 @@ fn main() -> Result<(), Error> {
     };
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
+
+    let mut scene = Scene::TexturedCube;
 
     let set = 0;
     let binding = 0;
@@ -61,6 +72,18 @@ fn main() -> Result<(), Error> {
                 //optick::stop_capture("perf");
                 *control_flow = ControlFlow::Exit;
                 return;
+            }
+
+            if input.key_pressed(VirtualKeyCode::Key1) {
+                change_scene(&mut scene, Scene::TexturedCube);
+            } else if input.key_pressed(VirtualKeyCode::Key2) {
+                change_scene(&mut scene, Scene::ColorBlendCube);
+            } else if input.key_pressed(VirtualKeyCode::Key3) {
+                change_scene(&mut scene, Scene::Model);
+            } else if input.key_pressed(VirtualKeyCode::Key4) {
+                change_scene(&mut scene, Scene::DepthTester);
+            } else if input.key_pressed(VirtualKeyCode::Key5) {
+                change_scene(&mut scene, Scene::ComplexScene);
             }
 
             //x
@@ -137,4 +160,11 @@ fn main() -> Result<(), Error> {
             _ => (),
         }
     });
+}
+
+fn change_scene(scene: &mut Scene, next_scene: Scene) {
+    if *scene != next_scene {
+        println!("Changed scene to: {:?}", next_scene);
+        *scene = next_scene;
+    }
 }

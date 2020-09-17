@@ -30,26 +30,25 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 
 TODO:
-1. Look into better memory allocators like (bumpalo, toolshed, typed_arena)
 1. Store/Upload data into a "device" (like WGPU) inside of Fuwa class?
+1. Add model loader
+1. Slotmap? Slab? (especially for textures/shaders)
 1. Find a way to make FragmentBuffer handle multiple different shader types
 1. Fix potential crashes when moving too close to objects (draw out of bounds)
-1. Slotmap? Slab? (especially for textures/shaders)
 1. Improve the way of handling textures instead of hard coded things
 1. Geometry Shader
 1. Fill out "FuwaStats" struct for data logging/analysis
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
-1. Try (smallvec, tinyvec, arrayvec) in raster function
 1. Investigate pros/cons of fixed point
 1. Continue SIMDifying Rasterizer
+1. Look into better memory allocators like (bumpalo, toolshed, typed_arena)
 1. Add special logic/early outs for special shaped triangle BBs
+1. Try (smallvec, tinyvec, arrayvec) in raster function -- smallvec gave a performance loss??
 
 SCENES TO MAKE:
+1. Cube Textured
+1. Cube Color Blend
 1. Complex Scene
-1. Triangle (Colored)
-1. Triangle (Textured)
-1. Plane
-1. Cube
 1. Depth Tester
 
 BENCHMARKS TO MAKE:
