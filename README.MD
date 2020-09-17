@@ -4,7 +4,7 @@ A software renderer written in Rust.
 
 Goals:
 1. Full featured graphics rendering library matching functionality of something like OpenGL or Direct X, or WebGPU.
-1. Optimal performance suitable for real-time usage (at least as good as software rendering can be).
+1. Performance suitable for real-time usage (at least as good as software rendering can be).
 1. A wealth of examples and documentation to provide a solid foundation in computer graphics.
 
 A note on safety:
@@ -31,6 +31,9 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 TODO:
 1. Look into better memory allocators like (bumpalo, toolshed, typed_arena)
+1. Store/Upload data into a "device" (like WGPU) inside of Fuwa class?
+1. Find a way to make FragmentBuffer handle multiple different shader types
+1. Fix potential crashes when moving too close to objects (draw out of bounds)
 1. Slotmap? Slab? (especially for textures/shaders)
 1. Improve the way of handling textures instead of hard coded things
 1. Geometry Shader
