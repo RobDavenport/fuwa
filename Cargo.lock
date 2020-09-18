@@ -608,6 +608,7 @@ dependencies = [
  "pixels",
  "raw-window-handle",
  "rayon",
+ "slab",
  "wide 0.5.4",
  "winit",
  "winit_input_helper",

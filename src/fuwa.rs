@@ -7,6 +7,7 @@ use crate::{
     FragmentShader,
 };
 use glam::*;
+use image::GenericImageView;
 use lazy_static::lazy_static;
 use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
 use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
@@ -414,22 +415,20 @@ impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync> Fuwa
     //     }
     // }
 
-    pub fn load_texture(&mut self, path: String, _set: u8, _binding: u8) {
+    pub fn load_texture(&mut self, path: String) -> usize {
         let image_bytes = std::fs::read(format!("./resources/{}", &path)).unwrap();
         let image_data = image::load_from_memory(&image_bytes).unwrap();
-        let image_data = image_data.as_rgba8().unwrap();
         let dimensions = image_data.dimensions();
+        let image_data = if let Some(data) = image_data.as_rgba8() {
+            data.to_vec()
+        } else {
+            image_data.into_rgba().to_vec()
+        };
 
-        //use bincode::serialize;
-        let texture = Texture {
+        self.uniforms.add_texture(Texture {
             width: dimensions.0,
             height: dimensions.1,
             data: image_data.to_vec(),
-        };
-
-        //TODO: FIX THIS LATER
-        self.uniforms.insert_texture(texture);
-        // self.uniforms
-        //     .insert(set, binding, serialize(&texture).unwrap())
+        })
     }
 }

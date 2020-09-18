@@ -4,6 +4,9 @@
 mod texture;
 pub use texture::*;
 
+mod sampler;
+pub use sampler::*;
+
 // use raw_window_handle::HasRawWindowHandle;
 
 // impl<W: HasRawWindowHandle> Fuwa<W> {

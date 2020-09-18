@@ -50,19 +50,30 @@ impl FragmentShader<Vec3A> for ColorBlend {
 
 #[derive(Clone)]
 pub struct Textured {
-    pub set: u8,
-    pub binding: u8,
+    texture_handle: usize,
 }
 
 impl Textured {
-    pub fn new(set: u8, binding: u8) -> Self {
-        Self { set, binding }
+    pub fn new(texture_handle: usize) -> Self {
+        Self { texture_handle }
+    }
+
+    pub fn set_texture_handle(&mut self, texture_handle: usize) {
+        self.texture_handle = texture_handle
+    }
+
+    pub fn get_texture_handle(&self) -> usize {
+        self.texture_handle
     }
 }
 
 impl FragmentShader<Vec2> for Textured {
     fn fragment_shader_fn(&self, fs_in: Vec2, uniforms: &Uniforms) -> [u8; 4] {
-        sample_2d(fs_in[0], fs_in[1], uniforms.get_texture())
+        sample_2d(
+            fs_in[0],
+            fs_in[1],
+            uniforms.get_texture(self.texture_handle),
+        )
     }
 }
 

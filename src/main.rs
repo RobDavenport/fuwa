@@ -39,18 +39,18 @@ fn main() -> Result<(), Error> {
 
     let mut scene = Scene::TexturedCube;
 
-    let set = 0;
-    let binding = 0;
-
     let mut vertex_shader = BasicVertexShader::new();
-    let fragment_shader = Textured::new(set, binding);
+
     // let pipeline = Pipeline::new(
     //     vertex_descriptor,
     //     fragment_shader::textured(set, binding),
     //     Box::new(vertex_shader),
     // );
 
-    fuwa.load_texture("box.png".to_string(), set, binding);
+    let box_texture_handle = fuwa.load_texture("box.png".to_string());
+    let doge_texture_handle = fuwa.load_texture("doge-bow.png".to_string());
+
+    let mut fragment_shader = Textured::new(box_texture_handle);
 
     let cube_data = unit_cube_uvs_into_data(1.);
     let cube_indices = unit_cube_indices();
@@ -84,6 +84,16 @@ fn main() -> Result<(), Error> {
                 change_scene(&mut scene, Scene::DepthTester);
             } else if input.key_pressed(VirtualKeyCode::Key5) {
                 change_scene(&mut scene, Scene::ComplexScene);
+            }
+
+            if input.key_pressed(VirtualKeyCode::T) {
+                if fragment_shader.get_texture_handle() == box_texture_handle {
+                    println!("Texture changed to Doge");
+                    fragment_shader.set_texture_handle(doge_texture_handle)
+                } else {
+                    println!("Texture changed to Box");
+                    fragment_shader.set_texture_handle(box_texture_handle)
+                }
             }
 
             //x
