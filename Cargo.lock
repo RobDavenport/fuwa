@@ -7,12 +7,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
-name = "ahash"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
-
-[[package]]
 name = "andrew"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -599,9 +593,7 @@ dependencies = [
  "bytemuck",
  "criterion",
  "glam",
- "hashbrown",
  "image",
- "itertools",
  "lazy_static",
  "once_cell",
  "optick",
@@ -609,7 +601,7 @@ dependencies = [
  "raw-window-handle",
  "rayon",
  "slab",
- "wide 0.5.4",
+ "wide 0.5.5",
  "winit",
  "winit_input_helper",
 ]
@@ -777,25 +769,15 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a09830d3a54df0e02f67340598635e75446cb87dc0d8d734f3c9742e02cc04f"
+checksum = "b2273fdae3729e928d8f4f29aee7e9931d196ce0a565030b96d7e0cc4c02f01f"
 
 [[package]]
 name = "half"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d36fab90f82edc3c747f9d438e06cf0a491055896f2a279638bb5beed6c40177"
-
-[[package]]
-name = "hashbrown"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91b62f79061a0bc2e046024cb7ba44b08419ed238ecbd9adbd787434b9e8c25"
-dependencies = [
- "ahash",
- "autocfg",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -2056,9 +2038,9 @@ dependencies = [
 
 [[package]]
 name = "wide"
-version = "0.5.4"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf5f4b594dfc67cc579b7725e8fc67e8e1c33c53ea9e61eecc17aeaa590680c0"
+checksum = "80b27c76ecc22bd81fe681d9c9eac81e002d7b7048105ee4608f57c4e92e9211"
 dependencies = [
  "bytemuck",
  "safe_arch",

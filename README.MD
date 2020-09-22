@@ -30,10 +30,11 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 
 TODO:
+1. Add geometric clipping algorithm for triangles.
+1. Fix potential crashes when moving too close to objects (draw out of bounds)
 1. Store/Upload data into a "device" (like WGPU) inside of Fuwa class?
 1. Add model loader
 1. Find a way to make FragmentBuffer handle multiple different shader types
-1. Fix potential crashes when moving too close to objects (draw out of bounds)
 1. Geometry Shader
 1. Fill out "FuwaStats" struct for data logging/analysis
 1. Add "Descriptors" like Vertex Descriptor, command queues, etc
