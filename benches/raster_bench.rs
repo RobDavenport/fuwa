@@ -1,7 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fuwa::*;
 use glam::*;
-use rayon::prelude::*;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
@@ -77,10 +76,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             black_box(0),
             black_box(&active_model),
         );
-
         b.iter(|| {
             fuwa.render(black_box(&frag_shader), black_box(0));
         });
+        fuwa.present();
     });
 
     c.bench_function("present_scene", |b| {
@@ -95,16 +94,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
 
         fuwa.render(black_box(&frag_shader), black_box(0));
-
         b.iter(|| {
-            fuwa.present().unwrap();
+            fuwa.present();
         });
     });
 
     c.bench_function("rasterize_scene", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
-
         b.iter(|| {
             pipeline::draw(
                 black_box(&mut fuwa),
@@ -113,26 +110,42 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&active_model),
             );
         });
-
         fuwa.render(black_box(&frag_shader), black_box(0));
+        fuwa.present();
     });
 
     c.bench_function("clear_screen", |b| {
-        fuwa.clear();
-        fuwa.clear_depth_buffer();
-
         b.iter(|| {
             fuwa.clear();
         });
+        fuwa.clear_depth_buffer();
+
+        pipeline::draw(
+            black_box(&mut fuwa),
+            black_box(&vert_shader),
+            black_box(0),
+            black_box(&active_model),
+        );
+
+        fuwa.render(black_box(&frag_shader), black_box(0));
+        fuwa.present();
     });
 
     c.bench_function("clear_depth_buffer", |b| {
         fuwa.clear();
-        fuwa.clear_depth_buffer();
-
         b.iter(|| {
             fuwa.clear_depth_buffer();
         });
+
+        pipeline::draw(
+            black_box(&mut fuwa),
+            black_box(&vert_shader),
+            black_box(0),
+            black_box(&active_model),
+        );
+
+        fuwa.render(black_box(&frag_shader), black_box(0));
+        fuwa.present();
     });
 }
 

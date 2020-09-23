@@ -1,11 +1,11 @@
 use super::Texture;
-use crate::{FragmentShader, rasterization::MapPtr};
+use crate::FSInput;
 use crate::Uniforms;
 use crate::{
     rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap,
     render_pipeline::DepthBuffer,
 };
-use crate::{FSInput};
+use crate::{rasterization::MapPtr, FragmentShader};
 use glam::*;
 use image::GenericImageView;
 use lazy_static::lazy_static;
@@ -139,27 +139,25 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     pub fn render<F: FSInput>(&mut self, shader: &impl FragmentShader<F>, shader_index: usize) {
         unsafe {
             let self_ptr = self.get_self_ptr();
-            if let Some(mut map) = (*self_ptr.0).fragment_slab_map.remove_map::<F>() {
-                (*self_ptr.0)
-                    .fragment_buffer
-                    .get_fragments_view_mut()
-                    .par_iter_mut()
-                    .enumerate()
-                    .for_each(|(index, fragment)| {
-                        if let Some(frag) = fragment {
-                            if frag.shader_index == shader_index {
-                                let color = shader.fragment_shader_fn(
-                                    map.remove(&frag.fragment_key).unwrap().1,
-                                    &(*self_ptr.0).uniforms,
-                                );
+            let map = (*self_ptr.0).fragment_slab_map.get_mut_map::<F>();
+            (*self_ptr.0)
+                .fragment_buffer
+                .get_fragments_view_mut()
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(index, fragment)| {
+                    if let Some(frag) = fragment {
+                        if frag.shader_index == shader_index {
+                            let color = shader.fragment_shader_fn(
+                                map.remove(&frag.fragment_key).unwrap().1,
+                                &(*self_ptr.0).uniforms,
+                            );
 
-                                (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                                *fragment = None;
-                            }
+                            (*self_ptr.0).set_pixel_by_index(index << 2, &color);
+                            *fragment = None;
                         }
-                    });
-                self.fragment_slab_map.insert_map(map);
-            }
+                    }
+                });
         }
     }
 
@@ -368,8 +366,16 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         for y in block_y..block_y + block_height {
             for x in block_x..block_x + block_width {
                 if depth_pass[idx].is_some() {
-                    let frag = map_ptr.insert_fragment(fs_index, (x + y * self.width) as usize,interp.next().unwrap());
-                    self.set_fragment(x, y, frag);
+                    let idx = (x + y * self.width) as usize;
+                    map_ptr.insert_fragment(fs_index, idx, interp.next().unwrap());
+                    self.set_fragment(
+                        x,
+                        y,
+                        FragmentKey {
+                            shader_index: fs_index,
+                            fragment_key: idx,
+                        },
+                    );
                 }
                 idx += 1;
             }
@@ -388,8 +394,16 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         let depth_pass = depth_pass.move_mask();
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
-                let frag = map_ptr.insert_fragment(fs_index, (pixel_x + pixel + pixel_y * self.width) as usize, interp[pixel as usize]);
-                self.set_fragment(pixel_x + pixel, pixel_y, frag)
+                let idx = (pixel_x + pixel + pixel_y * self.width) as usize;
+                map_ptr.insert_fragment(fs_index, idx, interp[pixel as usize]);
+                self.set_fragment(
+                    pixel_x + pixel,
+                    pixel_y,
+                    FragmentKey {
+                        fragment_key: idx,
+                        shader_index: fs_index,
+                    },
+                )
             }
         }
     }

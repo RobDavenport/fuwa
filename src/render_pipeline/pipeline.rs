@@ -1,6 +1,6 @@
 use super::shaders::FragmentShader;
 use super::Triangle;
-use crate::{Fuwa, IndexedVertexList, rasterization::MapPtr, rasterization::rasterizer};
+use crate::{rasterization::rasterizer, rasterization::MapPtr, Fuwa, IndexedVertexList};
 use crate::{FSInput, VSInput, VertexShader};
 use glam::*;
 use raw_window_handle::HasRawWindowHandle;
@@ -86,7 +86,7 @@ fn process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
     fs_index: usize,
-    map_ptr: MapPtr<F>
+    map_ptr: MapPtr<F>,
 ) {
     //Do something later
     post_process_triangle(fuwa, triangle, fs_index, map_ptr);
@@ -97,7 +97,7 @@ fn post_process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
     fs_index: usize,
-    map_ptr: MapPtr<F>
+    map_ptr: MapPtr<F>,
 ) {
     //Transform triangle to screen space
     triangle.transform_screen_space_perspective(fuwa);

@@ -58,7 +58,7 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     //Start traversing inner blocks
     //This can be done in parallel
     (min_y..max_y)
-        .into_par_iter()
+        .into_par_iter() //MAKE PAR
         .step_by(OUTER_BLOCK_HEIGHT as usize)
         .for_each(|block_y0| {
             //optick::register_thread("raster_tri_row");
