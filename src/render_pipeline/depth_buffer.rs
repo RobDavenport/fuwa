@@ -9,13 +9,13 @@ pub(crate) struct DepthBuffer {
 impl DepthBuffer {
     pub(crate) fn new(width: u32, height: u32) -> Self {
         Self {
-            depth_buffer: vec![f32::INFINITY; (width * height) as usize],
+            depth_buffer: vec![f32::NEG_INFINITY; (width * height) as usize],
         }
     }
 
     pub(crate) fn clear(&mut self) {
         self.depth_buffer.par_iter_mut().for_each(|x| {
-            *x = f32::INFINITY;
+            *x = f32::NEG_INFINITY;
         });
     }
 
@@ -24,7 +24,7 @@ impl DepthBuffer {
 
         unsafe {
             let prev = self.depth_buffer.get_unchecked_mut(index);
-            if depth < *prev {
+            if depth > *prev {
                 *prev = depth;
                 true
             } else {
@@ -36,7 +36,7 @@ impl DepthBuffer {
     pub fn try_set_depth_simd(&mut self, index: usize, depths: &f32x8) -> Option<f32x8> {
         unsafe {
             let prev = f32x8::from(self.depth_buffer.get_unchecked(index..index + 8));
-            let depth_pass_mask = depths.cmp_lt(prev);
+            let depth_pass_mask = depths.cmp_gt(prev);
 
             if depth_pass_mask.any() {
                 self.depth_buffer

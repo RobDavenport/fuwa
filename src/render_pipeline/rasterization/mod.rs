@@ -8,3 +8,6 @@ pub(crate) use fragment::*;
 
 mod fragment_buffer;
 pub(crate) use fragment_buffer::*;
+
+mod fragments_new;
+pub(crate) use fragments_new::*;

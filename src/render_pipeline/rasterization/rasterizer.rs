@@ -10,7 +10,7 @@ use wide::{f32x4, f32x8};
 
 lazy_static! {
     static ref STAMP_OFFSET_X: f32x8 = f32x8::from([0., 1., 2., 3., 4., 5., 6., 7.]);
-    static ref DEPTH_MAX: f32x8 = f32x8::splat(f32::INFINITY);
+    static ref DEPTH_MAX: f32x8 = f32x8::splat(f32::NEG_INFINITY);
     static ref STAMP_OFFSET_Y: f32x8 = f32x8::ZERO;
 }
 
@@ -19,25 +19,24 @@ const INNER_STAMP_HEIGHT: u32 = 1;
 const OUTER_BLOCK_WIDTH: u32 = 16;
 const OUTER_BLOCK_HEIGHT: u32 = 16;
 
-pub(crate) fn triangle<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync>(
-    fuwa: FuwaPtr<F, S, W>,
+pub(crate) fn triangle<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
+    fuwa: FuwaPtr<W>,
     triangle: &Triangle<F>,
-    fs: &S,
+    fs_index: usize,
 ) {
     let points2d = triangle.get_points_as_vec2();
     let bb = unsafe { (*fuwa.0).calculate_raster_bb(&points2d) };
 
-    rasterize_triangle_blocks(fuwa, triangle, fs, bb)
+    rasterize_triangle_blocks(fuwa, triangle, fs_index, bb)
 }
 
 fn rasterize_triangle_blocks<
     F: FSInput,
-    S: FragmentShader<F>,
     W: HasRawWindowHandle + Send + Sync,
 >(
-    fuwa: FuwaPtr<F, S, W>,
+    fuwa: FuwaPtr<W>,
     triangle: &Triangle<F>,
-    fs: &S,
+    fs_index: usize,
     bb: RasterBoundingBox,
 ) {
     //optick::event!();
@@ -60,7 +59,7 @@ fn rasterize_triangle_blocks<
     //Start traversing inner blocks
     //This can be done in parallel
     (min_y..max_y)
-        .into_par_iter()
+        .into_iter() //MAKE PAR
         .step_by(OUTER_BLOCK_HEIGHT as usize)
         .for_each(|block_y0| {
             //optick::register_thread("raster_tri_row");
@@ -105,46 +104,46 @@ fn rasterize_triangle_blocks<
 
                     //TODO: SIMD-ify this block next
                     //We can draw this block in one go
-                    (Inside, Inside, Inside) => {
-                        row_already_draw = true;
+                    // (Inside, Inside, Inside) => {
+                    //     row_already_draw = true;
 
-                        let a00 = cast::<_, [f32; 4]>(a_set)[0];
-                        let b00 = cast::<_, [f32; 4]>(b_set)[0];
-                        let c00 = cast::<_, [f32; 4]>(c_set)[0];
+                    //     let a00 = cast::<_, [f32; 4]>(a_set)[0];
+                    //     let b00 = cast::<_, [f32; 4]>(b_set)[0];
+                    //     let c00 = cast::<_, [f32; 4]>(c_set)[0];
 
-                        let depths = get_interpolated_z_block(
-                            triangle,
-                            (a00, b00, c00),
-                            (dx12, dx20, dx01),
-                            (dy12, dy20, dy01),
-                            OUTER_BLOCK_WIDTH,
-                            OUTER_BLOCK_HEIGHT,
-                        );
+                    //     let depths = get_interpolated_z_block(
+                    //         triangle,
+                    //         (a00, b00, c00),
+                    //         (dx12, dx20, dx01),
+                    //         (dy12, dy20, dy01),
+                    //         OUTER_BLOCK_WIDTH,
+                    //         OUTER_BLOCK_HEIGHT,
+                    //     );
 
-                        unsafe {
-                            if let Some(depth_pass) = (*fuwa.0).try_set_depth_block(
-                                (block_x0, block_y0),
-                                (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                depths,
-                            ) {
-                                let interpolated_verts = get_interpolated_triangle_block(
-                                    triangle,
-                                    (a00, b00, c00),
-                                    (dx12, dx20, dx01),
-                                    (dy12, dy20, dy01),
-                                    (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                    &depth_pass,
-                                );
-                                (*fuwa.0).set_fragments_block(
-                                    (block_x0, block_y0),
-                                    (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                    &depth_pass,
-                                    interpolated_verts,
-                                    fs,
-                                )
-                            }
-                        }
-                    }
+                    //     unsafe {
+                    //         if let Some(depth_pass) = (*fuwa.0).try_set_depth_block(
+                    //             (block_x0, block_y0),
+                    //             (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //             depths,
+                    //         ) {
+                    //             let interpolated_verts = get_interpolated_triangle_block(
+                    //                 triangle,
+                    //                 (a00, b00, c00),
+                    //                 (dx12, dx20, dx01),
+                    //                 (dy12, dy20, dy01),
+                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //                 &depth_pass,
+                    //             );
+                    //             (*fuwa.0).set_fragments_block(
+                    //                 (block_x0, block_y0),
+                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //                 &depth_pass,
+                    //                 interpolated_verts,
+                    //                 fs_index,
+                    //             )
+                    //         }
+                    //     }
+                    // }
 
                     _ => {
                         row_already_draw = true;
@@ -200,7 +199,7 @@ fn rasterize_triangle_blocks<
                                                         pixel_y,
                                                         interpolants,
                                                         depth_pass,
-                                                        fs,
+                                                        fs_index,
                                                     );
                                                 }
                                             }

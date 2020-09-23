@@ -50,10 +50,14 @@ fn main() -> Result<(), Error> {
     let box_texture_handle = fuwa.load_texture("box.png".to_string());
     let doge_texture_handle = fuwa.load_texture("doge-bow.png".to_string());
 
-    let mut fragment_shader = Textured::new(box_texture_handle);
+    let mut plane_shader = Textured::new(box_texture_handle);
+    let cube_shader = ColorBlend::new();
 
-    let cube_data = unit_cube_uvs_into_data(1.);
-    let cube_indices = unit_cube_indices();
+    let cube_data = colored_cube(1.);
+    let cube_indices = cube_indices();
+
+    let plane_data = textured_plane(1.);
+    let plane_indices = plane_indices();
 
     //let cube_data = textured_plane(1.);
     //let cube_indices = tri_indices();
@@ -87,12 +91,12 @@ fn main() -> Result<(), Error> {
             }
 
             if input.key_pressed(VirtualKeyCode::T) {
-                if fragment_shader.get_texture_handle() == box_texture_handle {
+                if plane_shader.get_texture_handle() == box_texture_handle {
                     println!("Texture changed to Doge");
-                    fragment_shader.set_texture_handle(doge_texture_handle)
+                    plane_shader.set_texture_handle(doge_texture_handle)
                 } else {
                     println!("Texture changed to Box");
-                    fragment_shader.set_texture_handle(box_texture_handle)
+                    plane_shader.set_texture_handle(box_texture_handle)
                 }
             }
 
@@ -139,19 +143,24 @@ fn main() -> Result<(), Error> {
                     * Mat3::from_rotation_y(rot_y)
                     * Mat3::from_rotation_z(rot_z);
 
-                let mut active_data = cube_data.clone();
-
-                let active_model = IndexedVertexList {
+                let active_cube = IndexedVertexList {
                     index_list: &cube_indices,
-                    raw_vertex_list: &mut active_data,
+                    raw_vertex_list: &mut cube_data.clone(),
                 };
 
-                vertex_shader.bind_rotation(rotation);
+                let active_plane = IndexedVertexList {
+                    index_list: &plane_indices,
+                    raw_vertex_list: &mut plane_data.clone(),
+                };
+
                 vertex_shader.bind_translation(offset);
+                vertex_shader.bind_rotation(rotation);
 
-                pipeline::draw(&mut fuwa, &vertex_shader, &fragment_shader, &active_model);
+                //pipeline::draw(&mut fuwa, &vertex_shader, 0, &active_cube);
+                pipeline::draw(&mut fuwa, &vertex_shader, 1, &active_plane);
 
-                fuwa.render();
+                //fuwa.render(&cube_shader, 0);
+                fuwa.render(&plane_shader, 1);
 
                 if fuwa
                     .present()

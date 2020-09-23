@@ -25,6 +25,7 @@ pub trait FSInput:
     + MulAssign<f32>
     + Div<f32, Output = Self>
     + DivAssign<f32>
+    + 'static
 {
 }
 impl FSInput for Vec3A {}

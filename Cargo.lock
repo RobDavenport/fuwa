@@ -601,6 +601,7 @@ dependencies = [
  "raw-window-handle",
  "rayon",
  "slab",
+ "type-map",
  "wide 0.5.5",
  "winit",
  "winit_input_helper",
@@ -1780,6 +1781,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f0e00789804e99b20f12bc7003ca416309d28a6f495d6af58d1e2c2842461b5"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "type-map"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d2741b1474c327d95c1f1e3b0a2c3977c8e128409c572a33af2914e7d636717"
+dependencies = [
+ "fxhash",
 ]
 
 [[package]]

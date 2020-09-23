@@ -64,11 +64,10 @@ impl<F: FSInput> Triangle<F> {
     }
 
     pub fn transform_screen_space_orthographic<
-        S: FragmentShader<F>,
         W: HasRawWindowHandle + Send + Sync,
     >(
         &mut self,
-        fuwa: &Fuwa<F, S, W>,
+        fuwa: &Fuwa<W>,
     ) {
         fuwa.transform_screen_space_orthographic(&mut self.points[0]);
         fuwa.transform_screen_space_orthographic(&mut self.points[1]);
@@ -76,11 +75,10 @@ impl<F: FSInput> Triangle<F> {
     }
 
     pub fn transform_screen_space_perspective<
-        S: FragmentShader<F>,
         W: HasRawWindowHandle + Send + Sync,
     >(
         &mut self,
-        fuwa: &Fuwa<F, S, W>,
+        fuwa: &Fuwa<W>,
     ) {
         fuwa.transform_screen_space_perspective(&mut self.points[0], &mut self.vs_input[0]);
         fuwa.transform_screen_space_perspective(&mut self.points[1], &mut self.vs_input[1]);

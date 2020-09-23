@@ -31,7 +31,7 @@ impl RasterBoundingBox {
     }
 }
 
-impl<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle> Fuwa<F, S, W> {
+impl<W: HasRawWindowHandle> Fuwa<W> {
     pub fn calculate_raster_bb(&self, points: &[Vec2; 3]) -> RasterBoundingBox {
         let zero = Vec3A::zero();
         let width_vec = Vec3A::splat(self.width as f32);

@@ -88,17 +88,17 @@ pub fn plane_uvs() -> [f32; 8] {
     [0., 1., 1., 1., 0., 0., 1., 0.]
 }
 
-pub fn textured_plane(size: f32) -> Vec<f32> {
+pub fn textured_plane(size: f32) -> Vec<[f32; 5]> {
     let plane = plane(size);
     let plane_uvs = plane_uvs();
 
-    let mut out = Vec::with_capacity(20);
+    let mut out = Vec::new();
     for (i, v) in plane.iter().enumerate() {
-        out.push(v.x());
-        out.push(v.y());
-        out.push(v.z());
-        out.push(plane_uvs[i * 2]);
-        out.push(plane_uvs[(i * 2) + 1]);
+        out.push([v.x(),
+        v.y(),
+        v.z(),
+        plane_uvs[i * 2],
+        plane_uvs[(i * 2) + 1]])
     }
     out
 }

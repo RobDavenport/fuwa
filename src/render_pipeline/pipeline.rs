@@ -25,11 +25,11 @@ use rayon::prelude::*;
 //     PipelinePtr(self as *const Self)
 // }
 
-pub fn draw<V: VSInput, F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Send + Sync>(
+pub fn draw<V: VSInput, F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     // &'fs self,
-    fuwa: &mut Fuwa<F, S, W>,
+    fuwa: &mut Fuwa<W>,
     vertex_shader: &impl VertexShader<V, F>,
-    fragment_shader: &S,
+    fs_index: usize,
     indexed_list: &IndexedVertexList<V>,
 ) {
     //optick::next_frame();
@@ -39,7 +39,7 @@ pub fn draw<V: VSInput, F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle 
         .map(|vertex| vertex_shader.vertex_shader_fn(vertex))
         .collect::<Vec<(Vec3A, F)>>();
 
-    assemble_triangles(fuwa, vs_output, fragment_shader, &indexed_list.index_list)
+    assemble_triangles(fuwa, vs_output, fs_index, &indexed_list.index_list)
 }
 
 // fn run_vertex_shader(vertex_list: &[V]) -> Vec<(Vec3A, F)> {
@@ -51,11 +51,11 @@ pub fn draw<V: VSInput, F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle 
 //         .collect::<Vec<(Vec3A, F)>>()
 // }
 
-fn assemble_triangles<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Sync + Send>(
+fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     //&'fs self,
-    fuwa: &mut Fuwa<F, S, W>,
+    fuwa: &mut Fuwa<W>,
     vs_output: Vec<(Vec3A, F)>,
-    fragment_shader: &S,
+    fs_index: usize,
     index_list: &[usize],
 ) {
     //loop through and build triangles,
@@ -64,7 +64,7 @@ fn assemble_triangles<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + 
     //let self_ptr = self.get_self_ptr();
     let fuwa_ptr = fuwa.get_self_ptr();
 
-    index_list.par_chunks_exact(3).for_each(|indices| unsafe {
+    index_list.chunks_exact(3).for_each(|indices| unsafe { //MAKE PAR
         let idx0 = indices[0];
         let idx1 = indices[1];
         let idx2 = indices[2];
@@ -76,32 +76,32 @@ fn assemble_triangles<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + 
 
         if !triangle.is_backfacing() {
             //(*self_ptr.0).
-            process_triangle(&mut *fuwa_ptr.0, &mut triangle, fragment_shader)
+            process_triangle(&mut *fuwa_ptr.0, &mut triangle, fs_index)
         }
     });
 }
 
-fn process_triangle<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Sync + Send>(
+fn process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     //&'fs self,
-    fuwa: &mut Fuwa<F, S, W>,
+    fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
-    fragment_shader: &S,
+    fs_index: usize,
 ) {
     //Do something later
-    post_process_triangle(fuwa, triangle, fragment_shader);
+    post_process_triangle(fuwa, triangle, fs_index);
 }
 
-fn post_process_triangle<F: FSInput, S: FragmentShader<F>, W: HasRawWindowHandle + Sync + Send>(
+fn post_process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     //&'fs self,
-    fuwa: &mut Fuwa<F, S, W>,
+    fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
-    fragment_shader: &S,
+    fs_index: usize,
 ) {
     //Transform triangle to screen space
     triangle.transform_screen_space_perspective(fuwa);
 
     //Draw the triangle
-    rasterizer::triangle(fuwa.get_self_ptr(), triangle, fragment_shader);
+    rasterizer::triangle(fuwa.get_self_ptr(), triangle, fs_index);
 }
 //}
 
