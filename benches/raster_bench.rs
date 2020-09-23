@@ -49,23 +49,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         raw_vertex_list: &mut active_data,
     };
 
-    c.bench_function("full_render_loop", |b| {
-        b.iter(|| {
-            fuwa.clear();
-            fuwa.clear_depth_buffer();
-
-            pipeline::draw(
-                black_box(&mut fuwa),
-                black_box(&vert_shader),
-                black_box(0),
-                black_box(&active_model),
-            );
-
-            fuwa.render(black_box(&frag_shader), black_box(0));
-            fuwa.present();
-        });
-    });
-
     c.bench_function("render_scene", |b| {
         fuwa.clear();
         fuwa.clear_depth_buffer();
@@ -146,6 +129,23 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         fuwa.render(black_box(&frag_shader), black_box(0));
         fuwa.present();
+    });
+
+    c.bench_function("full_render_loop", |b| {
+        b.iter(|| {
+            fuwa.clear();
+            fuwa.clear_depth_buffer();
+
+            pipeline::draw(
+                black_box(&mut fuwa),
+                black_box(&vert_shader),
+                black_box(0),
+                black_box(&active_model),
+            );
+
+            fuwa.render(black_box(&frag_shader), black_box(0));
+            fuwa.present();
+        });
     });
 }
 
