@@ -1,4 +1,4 @@
-use super::RasterBoundingBox;
+use super::{RasterBoundingBox, SlabPtr};
 use crate::{FSInput, FragmentShader};
 use crate::{FuwaPtr, Triangle};
 use bytemuck::cast;
@@ -23,11 +23,12 @@ pub(crate) fn triangle<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     fuwa: FuwaPtr<W>,
     triangle: &Triangle<F>,
     fs_index: usize,
+    slab_ptr: SlabPtr<F>,
 ) {
     let points2d = triangle.get_points_as_vec2();
     let bb = unsafe { (*fuwa.0).calculate_raster_bb(&points2d) };
 
-    rasterize_triangle_blocks(fuwa, triangle, fs_index, bb)
+    rasterize_triangle_blocks(fuwa, triangle, fs_index, bb, slab_ptr)
 }
 
 fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
@@ -35,6 +36,7 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     triangle: &Triangle<F>,
     fs_index: usize,
     bb: RasterBoundingBox,
+    slab_ptr: SlabPtr<F>,
 ) {
     //optick::event!();
     let points = triangle.get_points_as_vec3a();
@@ -137,6 +139,7 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
                                     &depth_pass,
                                     interpolated_verts,
                                     fs_index,
+                                    slab_ptr,
                                 )
                             }
                         }
@@ -197,6 +200,7 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
                                                         interpolants,
                                                         depth_pass,
                                                         fs_index,
+                                                        slab_ptr,
                                                     );
                                                 }
                                             }

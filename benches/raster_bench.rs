@@ -113,6 +113,8 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&active_model),
             );
         });
+
+        fuwa.render(black_box(&frag_shader), black_box(0));
     });
 
     c.bench_function("clear_screen", |b| {

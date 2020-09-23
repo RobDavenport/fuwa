@@ -23,6 +23,8 @@ slab = "0.4.2"
 type-map = "0.3.0"
 parking_lot = "0.11.0"
 bumpalo = "3.4.0"
+sharded-slab = "0.0.9"
+dashmap = "3.11.10"
 
 [dev-dependencies]
 criterion = "0.3.3"

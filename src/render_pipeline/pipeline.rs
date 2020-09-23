@@ -1,6 +1,6 @@
 use super::shaders::FragmentShader;
 use super::Triangle;
-use crate::{rasterization::rasterizer, Fuwa, IndexedVertexList};
+use crate::{rasterization::rasterizer, rasterization::SlabPtr, Fuwa, IndexedVertexList};
 use crate::{FSInput, VSInput, VertexShader};
 use glam::*;
 use raw_window_handle::HasRawWindowHandle;
@@ -63,6 +63,7 @@ fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
 
     //let self_ptr = self.get_self_ptr();
     let fuwa_ptr = fuwa.get_self_ptr();
+    let slab_ptr = SlabPtr(fuwa.fragment_slab_map.get_mut_slab::<F>());
 
     index_list.par_chunks_exact(3).for_each(|indices| unsafe {
         let idx0 = indices[0];
@@ -75,7 +76,7 @@ fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
         );
 
         if !triangle.is_backfacing() {
-            process_triangle(&mut *fuwa_ptr.0, &mut triangle, fs_index)
+            process_triangle(&mut *fuwa_ptr.0, &mut triangle, fs_index, slab_ptr)
         }
     });
 }
@@ -85,9 +86,10 @@ fn process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
     fs_index: usize,
+    slab_ptr: SlabPtr<F>,
 ) {
     //Do something later
-    post_process_triangle(fuwa, triangle, fs_index);
+    post_process_triangle(fuwa, triangle, fs_index, slab_ptr);
 }
 
 fn post_process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
@@ -95,12 +97,13 @@ fn post_process_triangle<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     fuwa: &mut Fuwa<W>,
     triangle: &mut Triangle<F>,
     fs_index: usize,
+    slab_ptr: SlabPtr<F>,
 ) {
     //Transform triangle to screen space
     triangle.transform_screen_space_perspective(fuwa);
 
     //Draw the triangle
-    rasterizer::triangle(fuwa.get_self_ptr(), triangle, fs_index);
+    rasterizer::triangle(fuwa.get_self_ptr(), triangle, fs_index, slab_ptr);
 }
 //}
 

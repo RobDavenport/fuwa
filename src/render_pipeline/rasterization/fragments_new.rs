@@ -1,6 +1,5 @@
 use crate::FSInput;
-use parking_lot::RwLock;
-use slab::Slab;
+use sharded_slab::{Config, Slab};
 use type_map::TypeMap;
 
 pub(crate) struct FragmentBufferNew {
@@ -29,63 +28,51 @@ pub(crate) struct FragmentKey {
     pub(crate) fragment_key: usize,
 }
 
-pub(crate) struct FragmentSlabMap {
-    slab_map: RwLock<TypeMap>,
+pub struct FragmentSlabMap {
+    slab_map: TypeMap,
 }
 
 impl FragmentSlabMap {
     pub(crate) fn new() -> Self {
         Self {
-            slab_map: RwLock::new(TypeMap::new()),
+            slab_map: TypeMap::new(),
         }
     }
 
-    pub(crate) fn insert_fragment<F: FSInput + 'static>(
-        &mut self,
-        shader_index: usize,
-        input: F,
-    ) -> FragmentKey {
-        let mut write = self.slab_map.write();
-        if let Some(slab) = write.get_mut::<Slab<F>>() {
-            let fragment_key = slab.insert(input);
-            FragmentKey {
-                shader_index,
-                fragment_key,
-            }
-        } else {
-            let mut slab = Slab::new();
-            let fragment_key = slab.insert(input);
-            write.insert(slab);
-
-            FragmentKey {
-                shader_index,
-                fragment_key,
-            }
+    pub fn get_mut_slab<F: FSInput + 'static>(&mut self) -> &mut Slab<F> {
+        if !self.slab_map.contains::<Slab<F>>() {
+            let slab: Slab<F> = Slab::new_with_config();
+            self.slab_map.insert(slab);
         }
+
+        self.slab_map.get_mut::<Slab<F>>().unwrap()
     }
-
-    // pub(crate) fn get_slab<F: FSInput + 'static>(&self) -> Option<&Slab<F>> {
-    //     self.slab_map.read().get::<Slab<F>>()
-    // }
-
-    // pub(crate) fn get_slab_mut<F: FSInput + 'static>(&mut self) -> Option<&mut Slab<F>> {
-    //     self.slab_map.write().get_mut::<Slab<F>>()
-    // }
 
     pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Option<Slab<F>> {
-        self.slab_map.write().remove::<Slab<F>>()
+        self.slab_map.remove::<Slab<F>>()
     }
     pub(crate) fn insert_slab<F: FSInput + 'static>(&mut self, slab: Slab<F>) {
-        self.slab_map.write().insert(slab);
+        self.slab_map.insert(slab);
     }
 }
 
 unsafe impl<F> Send for SlabPtr<F> {}
 unsafe impl<F> Sync for SlabPtr<F> {}
+#[derive(Copy, Clone)]
 pub(crate) struct SlabPtr<F>(pub(crate) *mut Slab<F>);
 
 impl<F> SlabPtr<F> {
     pub(crate) fn new(slab: &mut Slab<F>) -> Self {
         Self(slab as *mut Slab<F>)
+    }
+
+    pub(crate) fn insert_fragment(&self, shader_index: usize, input: F) -> FragmentKey {
+        unsafe {
+            let fragment_key = (*self.0).insert(input).unwrap();
+            FragmentKey {
+                shader_index,
+                fragment_key,
+            }
+        }
     }
 }
