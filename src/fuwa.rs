@@ -1,11 +1,11 @@
 use super::Texture;
-use crate::FragmentShader;
+use crate::{FragmentShader, rasterization::MapPtr};
 use crate::Uniforms;
 use crate::{
     rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap,
     render_pipeline::DepthBuffer,
 };
-use crate::{rasterization::SlabPtr, FSInput};
+use crate::{FSInput};
 use glam::*;
 use image::GenericImageView;
 use lazy_static::lazy_static;
@@ -72,7 +72,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             y_factor: height as f32 * 0.5,
             uniforms: Uniforms::new(),
             fragment_buffer: FragmentBufferNew::new(width, height),
-            fragment_slab_map: FragmentSlabMap::new(),
+            fragment_slab_map: FragmentSlabMap::new(width, height),
             //fuwa_data: FuwaData::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
                 .enable_vsync(vsync)
@@ -139,7 +139,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     pub fn render<F: FSInput>(&mut self, shader: &impl FragmentShader<F>, shader_index: usize) {
         unsafe {
             let self_ptr = self.get_self_ptr();
-            if let Some(mut slab) = (*self_ptr.0).fragment_slab_map.remove_slab::<F>() {
+            if let Some(mut map) = (*self_ptr.0).fragment_slab_map.remove_map::<F>() {
                 (*self_ptr.0)
                     .fragment_buffer
                     .get_fragments_view_mut()
@@ -149,7 +149,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                         if let Some(frag) = fragment {
                             if frag.shader_index == shader_index {
                                 let color = shader.fragment_shader_fn(
-                                    slab.take(frag.fragment_key).unwrap(),
+                                    map.remove(&frag.fragment_key).unwrap().1,
                                     &(*self_ptr.0).uniforms,
                                 );
 
@@ -158,7 +158,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                             }
                         }
                     });
-                self.fragment_slab_map.insert_slab(slab);
+                self.fragment_slab_map.insert_map(map);
             }
         }
     }
@@ -361,14 +361,14 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         depth_pass: &[Option<f32>],
         interp: Vec<F>,
         fs_index: usize,
-        slab_ptr: SlabPtr<F>,
+        map_ptr: MapPtr<F>,
     ) {
         let mut idx = 0;
         let mut interp = interp.into_iter();
         for y in block_y..block_y + block_height {
             for x in block_x..block_x + block_width {
                 if depth_pass[idx].is_some() {
-                    let frag = slab_ptr.insert_fragment(fs_index, interp.next().unwrap());
+                    let frag = map_ptr.insert_fragment(fs_index, (x + y * self.width) as usize,interp.next().unwrap());
                     self.set_fragment(x, y, frag);
                 }
                 idx += 1;
@@ -383,12 +383,12 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         interp: [F; 8],
         depth_pass: f32x8,
         fs_index: usize,
-        slab_ptr: SlabPtr<F>,
+        map_ptr: MapPtr<F>,
     ) {
         let depth_pass = depth_pass.move_mask();
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
-                let frag = slab_ptr.insert_fragment(fs_index, interp[pixel as usize]);
+                let frag = map_ptr.insert_fragment(fs_index, (pixel_x + pixel + pixel_y * self.width) as usize, interp[pixel as usize]);
                 self.set_fragment(pixel_x + pixel, pixel_y, frag)
             }
         }

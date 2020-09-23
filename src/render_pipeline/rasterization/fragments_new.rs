@@ -1,6 +1,7 @@
 use crate::FSInput;
-use sharded_slab::{Config, Slab};
+use sharded_slab::Slab;
 use type_map::TypeMap;
+use dashmap::DashMap;
 
 pub(crate) struct FragmentBufferNew {
     fragments: Vec<Option<FragmentKey>>,
@@ -29,49 +30,51 @@ pub(crate) struct FragmentKey {
 }
 
 pub struct FragmentSlabMap {
-    slab_map: TypeMap,
+    data_map: TypeMap,
+    pixel_count: usize,
 }
 
 impl FragmentSlabMap {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(width: u32, height: u32) -> Self {
         Self {
-            slab_map: TypeMap::new(),
+            data_map: TypeMap::new(),
+            pixel_count: (width * height) as usize,
         }
     }
 
-    pub fn get_mut_slab<F: FSInput + 'static>(&mut self) -> &mut Slab<F> {
-        if !self.slab_map.contains::<Slab<F>>() {
-            let slab: Slab<F> = Slab::new_with_config();
-            self.slab_map.insert(slab);
+    pub fn get_mut_map<F: FSInput + 'static>(&mut self) -> &mut DashMap<usize, F> {
+        if !self.data_map.contains::<DashMap<usize, F>>() {
+            let map: DashMap<usize, F> = DashMap::with_capacity(self.pixel_count);
+            self.data_map.insert(map);
         }
 
-        self.slab_map.get_mut::<Slab<F>>().unwrap()
+        self.data_map.get_mut::<DashMap<usize, F>>().unwrap()
     }
 
-    pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Option<Slab<F>> {
-        self.slab_map.remove::<Slab<F>>()
+    pub(crate) fn remove_map<F: FSInput + 'static>(&mut self) -> Option<DashMap<usize, F>> {
+        self.data_map.remove::<DashMap<usize, F>>()
     }
-    pub(crate) fn insert_slab<F: FSInput + 'static>(&mut self, slab: Slab<F>) {
-        self.slab_map.insert(slab);
+    pub(crate) fn insert_map<F: FSInput + 'static>(&mut self, map: DashMap<usize, F>) {
+        self.data_map.insert(map);
     }
 }
 
-unsafe impl<F> Send for SlabPtr<F> {}
-unsafe impl<F> Sync for SlabPtr<F> {}
+unsafe impl<F> Send for MapPtr<F> {}
+unsafe impl<F> Sync for MapPtr<F> {}
 #[derive(Copy, Clone)]
-pub(crate) struct SlabPtr<F>(pub(crate) *mut Slab<F>);
+pub(crate) struct MapPtr<F>(pub(crate) *mut DashMap<usize, F>);
 
-impl<F> SlabPtr<F> {
-    pub(crate) fn new(slab: &mut Slab<F>) -> Self {
-        Self(slab as *mut Slab<F>)
+impl<F> MapPtr<F> {
+    pub(crate) fn new(map: &mut DashMap<usize, F>) -> Self {
+        Self(map as *mut DashMap<usize, F>)
     }
 
-    pub(crate) fn insert_fragment(&self, shader_index: usize, input: F) -> FragmentKey {
+    pub(crate) fn insert_fragment(&self, shader_index: usize, index: usize, input: F) -> FragmentKey {
         unsafe {
-            let fragment_key = (*self.0).insert(input).unwrap();
+            (*self.0).insert(index, input);
             FragmentKey {
                 shader_index,
-                fragment_key,
+                fragment_key: index,
             }
         }
     }
