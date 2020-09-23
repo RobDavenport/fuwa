@@ -72,7 +72,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             y_factor: height as f32 * 0.5,
             uniforms: Uniforms::new(),
             fragment_buffer: FragmentBufferNew::new(width, height),
-            fragment_slab_map: FragmentSlabMap::new(width, height),
+            fragment_slab_map: FragmentSlabMap::new(),
             //fuwa_data: FuwaData::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
                 .enable_vsync(vsync)
@@ -367,7 +367,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             for x in block_x..block_x + block_width {
                 if depth_pass[idx].is_some() {
                     let idx = (x + y * self.width) as usize;
-                    map_ptr.insert_fragment(fs_index, idx, interp.next().unwrap());
+                    map_ptr.insert_fragment(idx, interp.next().unwrap());
                     self.set_fragment(
                         x,
                         y,
@@ -395,7 +395,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
                 let idx = (pixel_x + pixel + pixel_y * self.width) as usize;
-                map_ptr.insert_fragment(fs_index, idx, interp[pixel as usize]);
+                map_ptr.insert_fragment(idx, interp[pixel as usize]);
                 self.set_fragment(
                     pixel_x + pixel,
                     pixel_y,

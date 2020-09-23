@@ -1,6 +1,5 @@
 use crate::FSInput;
 use dashmap::DashMap;
-use sharded_slab::Slab;
 use type_map::TypeMap;
 
 pub(crate) struct FragmentBufferNew {
@@ -31,32 +30,23 @@ pub(crate) struct FragmentKey {
 
 pub struct FragmentSlabMap {
     data_map: TypeMap,
-    pixel_count: usize,
 }
 
 impl FragmentSlabMap {
-    pub(crate) fn new(width: u32, height: u32) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             data_map: TypeMap::new(),
-            pixel_count: (width * height) as usize,
         }
     }
 
     pub fn get_mut_map<F: FSInput + 'static>(&mut self) -> &mut DashMap<usize, F> {
         if !self.data_map.contains::<DashMap<usize, F>>() {
-            let map: DashMap<usize, F> = DashMap::with_capacity(self.pixel_count);
+            let map: DashMap<usize, F> = DashMap::new();
             self.data_map.insert(map);
         }
 
         self.data_map.get_mut::<DashMap<usize, F>>().unwrap()
     }
-
-    // pub(crate) fn remove_map<F: FSInput + 'static>(&mut self) -> Option<DashMap<usize, F>> {
-    //     self.data_map.remove::<DashMap<usize, F>>()
-    // }
-    // pub(crate) fn insert_map<F: FSInput + 'static>(&mut self, map: DashMap<usize, F>) {
-    //     self.data_map.insert(map);
-    // }
 }
 
 unsafe impl<F> Send for MapPtr<F> {}
@@ -69,13 +59,9 @@ impl<F> MapPtr<F> {
         Self(map as *mut DashMap<usize, F>)
     }
 
-    pub(crate) fn insert_fragment(&self, shader_index: usize, index: usize, input: F) {
+    pub(crate) fn insert_fragment(&self, index: usize, input: F) {
         unsafe {
             (*self.0).insert(index, input);
-            // FragmentKey {
-            //     shader_index,
-            //     fragment_key: index,
-            // }
         }
     }
 }

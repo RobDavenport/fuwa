@@ -1,4 +1,4 @@
-use crate::{FSInput, FragmentShader, Fuwa};
+use crate::{FSInput, Fuwa};
 use glam::*;
 use once_cell::sync::OnceCell;
 use raw_window_handle::HasRawWindowHandle;
