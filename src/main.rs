@@ -56,7 +56,7 @@ fn main() -> Result<(), Error> {
     let cube_data = colored_cube(1.);
     let cube_indices = cube_indices();
 
-    let plane_data = textured_plane(1.);
+    let plane_data = textured_plane(2.);
     let plane_indices = plane_indices();
 
     //let cube_data = textured_plane(1.);
@@ -156,10 +156,10 @@ fn main() -> Result<(), Error> {
                 vertex_shader.bind_translation(offset);
                 vertex_shader.bind_rotation(rotation);
 
-                //pipeline::draw(&mut fuwa, &vertex_shader, 0, &active_cube);
+                pipeline::draw(&mut fuwa, &vertex_shader, 0, &active_cube);
                 pipeline::draw(&mut fuwa, &vertex_shader, 1, &active_plane);
 
-                //fuwa.render(&cube_shader, 0);
+                fuwa.render(&cube_shader, 0);
                 fuwa.render(&plane_shader, 1);
 
                 if fuwa

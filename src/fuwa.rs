@@ -1,10 +1,10 @@
 use super::Texture;
-use crate::{rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap, render_pipeline::DepthBuffer};
 use crate::FSInput;
+use crate::FragmentShader;
 use crate::Uniforms;
 use crate::{
-    //rasterization::{Fragment, FragmentBuffer},
-    FragmentShader,
+    rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap,
+    render_pipeline::DepthBuffer,
 };
 use glam::*;
 use image::GenericImageView;
@@ -44,9 +44,7 @@ lazy_static! {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct FuwaPtr<W: HasRawWindowHandle>(
-    pub(crate) *mut Fuwa<W>,
-);
+pub(crate) struct FuwaPtr<W: HasRawWindowHandle>(pub(crate) *mut Fuwa<W>);
 
 unsafe impl<W: HasRawWindowHandle> Send for FuwaPtr<W> {}
 unsafe impl<W: HasRawWindowHandle> Sync for FuwaPtr<W> {}
@@ -140,28 +138,30 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
 
     pub fn render<F: FSInput>(&mut self, shader: &impl FragmentShader<F>, shader_index: usize) {
         let self_ptr = self.get_self_ptr();
-        let mut slab = self.fragment_slab_map.remove_slab::<F>();
+        if let Some(mut slab) = self.fragment_slab_map.remove_slab::<F>() {
+            unsafe {
+                (*self_ptr.0)
+                    .fragment_buffer
+                    .get_fragments_view_mut()
+                    .iter_mut() //MAKE THIS PAR
+                    .enumerate()
+                    .for_each(|(index, fragment)| {
+                        if let Some(frag) = fragment {
+                            if frag.shader_index == shader_index {
+                                let color = shader.fragment_shader_fn(
+                                    *slab.get_unchecked(frag.fragment_key),
+                                    &self.uniforms,
+                                );
 
-        unsafe {
-            (*self_ptr.0)
-                .fragment_buffer
-                .get_fragments_view_mut()
-                .iter_mut() //MAKE THIS PAR
-                .enumerate()
-                .for_each(|(index, fragment)| {
-                    if let Some(frag) = fragment {
-                        if frag.shader_index == shader_index {
-                            let color = shader.fragment_shader_fn(*slab.get_unchecked(frag.fragment_key), &self.uniforms);
-
-                            (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                            slab.remove(frag.fragment_key);
-                            *fragment = None;
+                                (*self_ptr.0).set_pixel_by_index(index << 2, &color);
+                                slab.remove(frag.fragment_key);
+                                *fragment = None;
+                            }
                         }
-                    }
-                });
+                    });
+            }
+            self.fragment_slab_map.insert_slab(slab);
         }
-
-        self.fragment_slab_map.insert_slab(slab);
     }
 
     pub fn present(&mut self) -> Result<(), Error> {
@@ -289,7 +289,11 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         }
     }
 
-    pub fn transform_screen_space_perspective<F: FSInput>(&self, point: &mut Vec3A, interpolant: &mut F) {
+    pub fn transform_screen_space_perspective<F: FSInput>(
+        &self,
+        point: &mut Vec3A,
+        interpolant: &mut F,
+    ) {
         let z_inverse = point.z().recip();
 
         *interpolant *= z_inverse;
@@ -364,10 +368,12 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         for y in block_y..block_y + block_height {
             for x in block_x..block_x + block_width {
                 if depth_pass[idx].is_some() {
-                    let frag = self.fragment_slab_map.insert_fragment(fs_index, interp.next().unwrap());
+                    let frag = self
+                        .fragment_slab_map
+                        .insert_fragment(fs_index, interp.next().unwrap());
                     self.set_fragment(x, y, frag);
-                    idx += 1;
                 }
+                idx += 1;
             }
         }
     }
@@ -383,12 +389,10 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         let depth_pass = depth_pass.move_mask();
         for pixel in 0..8 {
             if 1 << pixel & depth_pass != 0 {
-                let frag = self.fragment_slab_map.insert_fragment(fs_index, interp[pixel as usize]);
-                self.set_fragment(
-                    pixel_x + pixel,
-                    pixel_y,
-                    frag,
-                )
+                let frag = self
+                    .fragment_slab_map
+                    .insert_fragment(fs_index, interp[pixel as usize]);
+                self.set_fragment(pixel_x + pixel, pixel_y, frag)
             }
         }
     }

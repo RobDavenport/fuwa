@@ -63,9 +63,7 @@ impl<F: FSInput> Triangle<F> {
         is_backfacing_points(&self.points)
     }
 
-    pub fn transform_screen_space_orthographic<
-        W: HasRawWindowHandle + Send + Sync,
-    >(
+    pub fn transform_screen_space_orthographic<W: HasRawWindowHandle + Send + Sync>(
         &mut self,
         fuwa: &Fuwa<W>,
     ) {
@@ -74,9 +72,7 @@ impl<F: FSInput> Triangle<F> {
         fuwa.transform_screen_space_orthographic(&mut self.points[2]);
     }
 
-    pub fn transform_screen_space_perspective<
-        W: HasRawWindowHandle + Send + Sync,
-    >(
+    pub fn transform_screen_space_perspective<W: HasRawWindowHandle + Send + Sync>(
         &mut self,
         fuwa: &Fuwa<W>,
     ) {

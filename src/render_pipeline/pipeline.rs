@@ -64,7 +64,8 @@ fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     //let self_ptr = self.get_self_ptr();
     let fuwa_ptr = fuwa.get_self_ptr();
 
-    index_list.chunks_exact(3).for_each(|indices| unsafe { //MAKE PAR
+    index_list.chunks_exact(3).for_each(|indices| unsafe {
+        //MAKE PAR
         let idx0 = indices[0];
         let idx1 = indices[1];
         let idx2 = indices[2];

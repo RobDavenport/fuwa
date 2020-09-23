@@ -17,7 +17,7 @@ impl FragmentBufferNew {
         self.fragments[index] = Some(fragment)
     }
 
-    pub(crate) fn get_fragments_view_mut(&mut self) -> &mut[Option<FragmentKey>] {
+    pub(crate) fn get_fragments_view_mut(&mut self) -> &mut [Option<FragmentKey>] {
         &mut self.fragments
     }
 }
@@ -35,7 +35,7 @@ pub(crate) struct FragmentSlabMap {
 impl FragmentSlabMap {
     pub(crate) fn new() -> Self {
         Self {
-            slab_map: TypeMap::new()
+            slab_map: TypeMap::new(),
         }
     }
 
@@ -66,8 +66,8 @@ impl FragmentSlabMap {
         self.slab_map.get::<Slab<F>>().unwrap()
     }
 
-    pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Slab<F> {
-        self.slab_map.remove::<Slab<F>>().unwrap()
+    pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Option<Slab<F>> {
+        self.slab_map.remove::<Slab<F>>()
     }
     pub(crate) fn insert_slab<F: FSInput + 'static>(&mut self, slab: Slab<F>) {
         self.slab_map.insert(slab);

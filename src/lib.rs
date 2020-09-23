@@ -94,11 +94,13 @@ pub fn textured_plane(size: f32) -> Vec<[f32; 5]> {
 
     let mut out = Vec::new();
     for (i, v) in plane.iter().enumerate() {
-        out.push([v.x(),
-        v.y(),
-        v.z(),
-        plane_uvs[i * 2],
-        plane_uvs[(i * 2) + 1]])
+        out.push([
+            v.x(),
+            v.y(),
+            v.z(),
+            plane_uvs[i * 2],
+            plane_uvs[(i * 2) + 1],
+        ])
     }
     out
 }
