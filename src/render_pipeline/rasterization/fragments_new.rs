@@ -1,4 +1,5 @@
 use crate::FSInput;
+use parking_lot::RwLock;
 use slab::Slab;
 use type_map::TypeMap;
 
@@ -29,13 +30,13 @@ pub(crate) struct FragmentKey {
 }
 
 pub(crate) struct FragmentSlabMap {
-    slab_map: TypeMap,
+    slab_map: RwLock<TypeMap>,
 }
 
 impl FragmentSlabMap {
     pub(crate) fn new() -> Self {
         Self {
-            slab_map: TypeMap::new(),
+            slab_map: RwLock::new(TypeMap::new()),
         }
     }
 
@@ -44,7 +45,8 @@ impl FragmentSlabMap {
         shader_index: usize,
         input: F,
     ) -> FragmentKey {
-        if let Some(slab) = self.slab_map.get_mut::<Slab<F>>() {
+        let mut write = self.slab_map.write();
+        if let Some(slab) = write.get_mut::<Slab<F>>() {
             let fragment_key = slab.insert(input);
             FragmentKey {
                 shader_index,
@@ -53,7 +55,7 @@ impl FragmentSlabMap {
         } else {
             let mut slab = Slab::new();
             let fragment_key = slab.insert(input);
-            self.slab_map.insert::<Slab<F>>(slab);
+            write.insert(slab);
 
             FragmentKey {
                 shader_index,
@@ -62,14 +64,28 @@ impl FragmentSlabMap {
         }
     }
 
-    pub(crate) fn get_slab<F: FSInput + 'static>(&self) -> &Slab<F> {
-        self.slab_map.get::<Slab<F>>().unwrap()
-    }
+    // pub(crate) fn get_slab<F: FSInput + 'static>(&self) -> Option<&Slab<F>> {
+    //     self.slab_map.read().get::<Slab<F>>()
+    // }
+
+    // pub(crate) fn get_slab_mut<F: FSInput + 'static>(&mut self) -> Option<&mut Slab<F>> {
+    //     self.slab_map.write().get_mut::<Slab<F>>()
+    // }
 
     pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Option<Slab<F>> {
-        self.slab_map.remove::<Slab<F>>()
+        self.slab_map.write().remove::<Slab<F>>()
     }
     pub(crate) fn insert_slab<F: FSInput + 'static>(&mut self, slab: Slab<F>) {
-        self.slab_map.insert(slab);
+        self.slab_map.write().insert(slab);
+    }
+}
+
+unsafe impl<F> Send for SlabPtr<F> {}
+unsafe impl<F> Sync for SlabPtr<F> {}
+pub(crate) struct SlabPtr<F>(pub(crate) *mut Slab<F>);
+
+impl<F> SlabPtr<F> {
+    pub(crate) fn new(slab: &mut Slab<F>) -> Self {
+        Self(slab as *mut Slab<F>)
     }
 }

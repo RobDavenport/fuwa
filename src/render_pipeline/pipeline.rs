@@ -64,8 +64,7 @@ fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
     //let self_ptr = self.get_self_ptr();
     let fuwa_ptr = fuwa.get_self_ptr();
 
-    index_list.chunks_exact(3).for_each(|indices| unsafe {
-        //MAKE PAR
+    index_list.par_chunks_exact(3).for_each(|indices| unsafe {
         let idx0 = indices[0];
         let idx1 = indices[1];
         let idx2 = indices[2];
@@ -76,7 +75,6 @@ fn assemble_triangles<F: FSInput, W: HasRawWindowHandle + Sync + Send>(
         );
 
         if !triangle.is_backfacing() {
-            //(*self_ptr.0).
             process_triangle(&mut *fuwa_ptr.0, &mut triangle, fs_index)
         }
     });

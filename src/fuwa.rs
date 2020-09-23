@@ -1,11 +1,11 @@
 use super::Texture;
-use crate::FSInput;
 use crate::FragmentShader;
 use crate::Uniforms;
 use crate::{
     rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap,
     render_pipeline::DepthBuffer,
 };
+use crate::{rasterization::SlabPtr, FSInput};
 use glam::*;
 use image::GenericImageView;
 use lazy_static::lazy_static;
@@ -13,6 +13,7 @@ use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
 use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
+use slab::Slab;
 use std::marker::{Send, Sync};
 use wide::f32x8;
 
@@ -137,30 +138,31 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 
     pub fn render<F: FSInput>(&mut self, shader: &impl FragmentShader<F>, shader_index: usize) {
-        let self_ptr = self.get_self_ptr();
-        if let Some(mut slab) = self.fragment_slab_map.remove_slab::<F>() {
-            unsafe {
+        unsafe {
+            let self_ptr = self.get_self_ptr();
+            if let Some(mut slab) = (*self_ptr.0).fragment_slab_map.remove_slab::<F>() {
+                let slab_ptr = SlabPtr::new(&mut slab);
                 (*self_ptr.0)
                     .fragment_buffer
                     .get_fragments_view_mut()
-                    .iter_mut() //MAKE THIS PAR
+                    .par_iter_mut()
                     .enumerate()
                     .for_each(|(index, fragment)| {
                         if let Some(frag) = fragment {
                             if frag.shader_index == shader_index {
                                 let color = shader.fragment_shader_fn(
                                     *slab.get_unchecked(frag.fragment_key),
-                                    &self.uniforms,
+                                    &(*self_ptr.0).uniforms,
                                 );
 
                                 (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                                slab.remove(frag.fragment_key);
+                                (*slab_ptr.0).remove(frag.fragment_key);
                                 *fragment = None;
                             }
                         }
                     });
+                self.fragment_slab_map.insert_slab(slab);
             }
-            self.fragment_slab_map.insert_slab(slab);
         }
     }
 

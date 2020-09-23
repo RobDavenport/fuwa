@@ -58,11 +58,11 @@ fn criterion_benchmark(c: &mut Criterion) {
             pipeline::draw(
                 black_box(&mut fuwa),
                 black_box(&vert_shader),
-                black_box(&frag_shader),
+                black_box(0),
                 black_box(&active_model),
             );
 
-            fuwa.render();
+            fuwa.render(black_box(&frag_shader), black_box(0));
             fuwa.present();
         });
     });
@@ -74,12 +74,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         pipeline::draw(
             black_box(&mut fuwa),
             black_box(&vert_shader),
-            black_box(&frag_shader),
+            black_box(0),
             black_box(&active_model),
         );
 
         b.iter(|| {
-            fuwa.render();
+            fuwa.render(black_box(&frag_shader), black_box(0));
         });
     });
 
@@ -90,11 +90,11 @@ fn criterion_benchmark(c: &mut Criterion) {
         pipeline::draw(
             black_box(&mut fuwa),
             black_box(&vert_shader),
-            black_box(&frag_shader),
+            black_box(0),
             black_box(&active_model),
         );
 
-        fuwa.render();
+        fuwa.render(black_box(&frag_shader), black_box(0));
 
         b.iter(|| {
             fuwa.present().unwrap();
@@ -109,7 +109,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             pipeline::draw(
                 black_box(&mut fuwa),
                 black_box(&vert_shader),
-                black_box(&frag_shader),
+                black_box(0),
                 black_box(&active_model),
             );
         });

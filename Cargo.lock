@@ -590,6 +590,7 @@ dependencies = [
 name = "fuwa"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "bytemuck",
  "criterion",
  "glam",
@@ -597,6 +598,7 @@ dependencies = [
  "lazy_static",
  "once_cell",
  "optick",
+ "parking_lot 0.11.0",
  "pixels",
  "raw-window-handle",
  "rayon",
