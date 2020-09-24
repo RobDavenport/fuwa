@@ -44,7 +44,7 @@ impl DepthBuffer {
             if depth_pass_mask.any() {
                 self.depth_buffer
                     .get_unchecked_mut(index..index + 8)
-                    .copy_from_slice(&cast::<_, [f32; 8]>(depth_pass_mask.blend(*depths, prev)));
+                    .copy_from_slice(&cast::<_, [f32; 8]>(depths.max(prev)));
                 Some(depth_pass_mask)
             } else {
                 None

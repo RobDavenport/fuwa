@@ -248,15 +248,6 @@ fn get_interp_values_simd(w0: &f32x8, w1: &f32x8, w2: &f32x8) -> (f32x8, f32x8) 
     (l1, l2)
 }
 
-//TODO: FIX THIS LATER
-// fn get_interpolated_z(triangle: &Triangle, w0: f32, w1: f32, w2: f32) -> f32 {
-//     //optick::event!();
-
-//     let (l1, l2) = get_interp_values(w0, w1, w2);
-//     let [z0, zs10, zs20] = triangle.get_z_diffs();
-//     z0 + (l1 * zs10) + (l2 * zs20)
-// }
-
 fn get_interpolated_z_simd<F: FSInput>(
     triangle: &Triangle<F>,
     w0: &f32x8,
@@ -269,21 +260,6 @@ fn get_interpolated_z_simd<F: FSInput>(
     let [z0, zs10, zs20] = triangle.get_z_diffs();
     *z0 + (l1 * *zs10) + (l2 * *zs20)
 }
-
-//TODO: FIX THIS LATER
-// fn interpolate_triangle(triangle: &Triangle, w0: f32, w1: f32, w2: f32, pixel_z: f32) -> Vec<f32> {
-//     //optick::event!();
-
-//     let (l1, l2) = get_interp_values(w0, w1, w2);
-//     let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
-//     let len = p0.len();
-
-//     let mut out = Vec::with_capacity(len);
-//     for i in 0..len {
-//         out.push((p0[i] + (l1 * sub10[i]) + (l2 * sub20[i])) * pixel_z);
-//     }
-//     out
-// }
 
 fn interpolate_triangle_simd<F: FSInput>(
     triangle: &Triangle<F>,

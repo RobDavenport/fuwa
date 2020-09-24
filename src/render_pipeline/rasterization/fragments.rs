@@ -2,11 +2,11 @@ use crate::FSInput;
 use sharded_slab::Slab;
 use type_map::TypeMap;
 
-pub(crate) struct FragmentBufferNew {
+pub(crate) struct FragmentBuffer {
     fragments: Vec<Option<FragmentKey>>,
 }
 
-impl FragmentBufferNew {
+impl FragmentBuffer {
     pub(crate) fn new(width: u32, height: u32) -> Self {
         Self {
             fragments: vec![None; (width * height) as usize],

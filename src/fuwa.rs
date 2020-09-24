@@ -1,11 +1,10 @@
 use super::Texture;
-use crate::FragmentShader;
-use crate::Uniforms;
 use crate::{
-    rasterization::FragmentBufferNew, rasterization::FragmentKey, rasterization::FragmentSlabMap,
+    rasterization::{FragmentBuffer, FragmentKey, FragmentSlabMap, SlabPtr},
     render_pipeline::DepthBuffer,
+    FSInput,
 };
-use crate::{rasterization::SlabPtr, FSInput};
+use crate::{FragmentShader, Uniforms};
 use glam::*;
 use image::GenericImageView;
 use lazy_static::lazy_static;
@@ -24,7 +23,7 @@ pub struct Fuwa<W: HasRawWindowHandle> {
     pub y_factor: f32,
     pub pixels: Pixels<W>,
     pub(crate) depth_buffer: DepthBuffer,
-    pub(crate) fragment_buffer: FragmentBufferNew,
+    pub(crate) fragment_buffer: FragmentBuffer,
     pub fragment_slab_map: FragmentSlabMap,
     pub(crate) uniforms: Uniforms,
     pub raster_par_count: usize,
@@ -71,7 +70,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             x_factor: width as f32 * 0.5,
             y_factor: height as f32 * 0.5,
             uniforms: Uniforms::new(),
-            fragment_buffer: FragmentBufferNew::new(width, height),
+            fragment_buffer: FragmentBuffer::new(width, height),
             fragment_slab_map: FragmentSlabMap::new(),
             //fuwa_data: FuwaData::new(),
             pixels: PixelsBuilder::new(width, height, SurfaceTexture::new(width, height, &*window))
@@ -163,17 +162,16 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 .get_fragments_view_mut()
                 .par_iter_mut()
                 .enumerate()
-                .filter(|(_, fragment)| fragment.is_some())
+                .filter(|(_index, fragment)| fragment.is_some())
                 .for_each(|(index, fragment)| {
-                    if let Some(frag) = fragment {
-                        if frag.shader_index == shader_index {
-                            let color = shader.fragment_shader_fn(
-                                slab.take(frag.fragment_key).unwrap(),
-                                &(*self_ptr.0).uniforms,
-                            );
-                            (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                            *fragment = None;
-                        }
+                    let frag = fragment.as_ref().unwrap();
+                    if frag.shader_index == shader_index {
+                        let color = shader.fragment_shader_fn(
+                            slab.take(frag.fragment_key).unwrap(),
+                            &(*self_ptr.0).uniforms,
+                        );
+                        (*self_ptr.0).set_pixel_by_index(index << 2, &color);
+                        *fragment = None;
                     }
                 });
         }
