@@ -10,7 +10,7 @@ use wide::{f32x4, f32x8};
 
 lazy_static! {
     static ref STAMP_OFFSET_X: f32x8 = f32x8::from([0., 1., 2., 3., 4., 5., 6., 7.]);
-    static ref DEPTH_MAX: f32x8 = f32x8::splat(f32::NAN);
+    static ref DEPTH_FAIL: f32x8 = f32x8::splat(f32::NAN);
     static ref STAMP_OFFSET_Y: f32x8 = f32x8::ZERO;
 }
 
@@ -102,49 +102,49 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
                     }
 
                     //TODO: SIMD-ify this block next
+                    //Currently it's faster to just ignore this early out
                     //We can draw this block in one go
-                    (Inside, Inside, Inside) => {
-                        row_already_draw = true;
+                    // (Inside, Inside, Inside) => {
+                    //     row_already_draw = true;
 
-                        let a00 = cast::<_, [f32; 4]>(a_set)[0];
-                        let b00 = cast::<_, [f32; 4]>(b_set)[0];
-                        let c00 = cast::<_, [f32; 4]>(c_set)[0];
+                    //     let a00 = cast::<_, [f32; 4]>(a_set)[0];
+                    //     let b00 = cast::<_, [f32; 4]>(b_set)[0];
+                    //     let c00 = cast::<_, [f32; 4]>(c_set)[0];
 
-                        let depths = get_interpolated_z_block(
-                            triangle,
-                            (a00, b00, c00),
-                            (dx12, dx20, dx01),
-                            (dy12, dy20, dy01),
-                            OUTER_BLOCK_WIDTH,
-                            OUTER_BLOCK_HEIGHT,
-                        );
+                    //     let depths = get_interpolated_z_block(
+                    //         triangle,
+                    //         (a00, b00, c00),
+                    //         (dx12, dx20, dx01),
+                    //         (dy12, dy20, dy01),
+                    //         OUTER_BLOCK_WIDTH,
+                    //         OUTER_BLOCK_HEIGHT,
+                    //     );
 
-                        unsafe {
-                            if let Some(depth_pass) = (*fuwa.0).try_set_depth_block(
-                                (block_x0, block_y0),
-                                (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                depths,
-                            ) {
-                                let interpolated_verts = get_interpolated_triangle_block(
-                                    triangle,
-                                    (a00, b00, c00),
-                                    (dx12, dx20, dx01),
-                                    (dy12, dy20, dy01),
-                                    (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                    &depth_pass,
-                                );
-                                (*fuwa.0).set_fragments_block(
-                                    (block_x0, block_y0),
-                                    (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                                    &depth_pass,
-                                    interpolated_verts,
-                                    fs_index,
-                                    slab_ptr,
-                                )
-                            }
-                        }
-                    }
-
+                    //     unsafe {
+                    //         if let Some(depth_pass) = (*fuwa.0).try_set_depth_block(
+                    //             (block_x0, block_y0),
+                    //             (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //             depths,
+                    //         ) {
+                    //             let interpolated_verts = get_interpolated_triangle_block(
+                    //                 triangle,
+                    //                 (a00, b00, c00),
+                    //                 (dx12, dx20, dx01),
+                    //                 (dy12, dy20, dy01),
+                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //                 &depth_pass,
+                    //             );
+                    //             (*fuwa.0).set_fragments_block(
+                    //                 (block_x0, block_y0),
+                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
+                    //                 &depth_pass,
+                    //                 interpolated_verts,
+                    //                 fs_index,
+                    //                 slab_ptr,
+                    //             )
+                    //         }
+                    //     }
+                    // }
                     _ => {
                         row_already_draw = true;
                         //We have a partially covered block, so we
@@ -185,7 +185,7 @@ fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
                                                 get_interpolated_z_simd(
                                                     &triangle, &cx0, &cx1, &cx2,
                                                 ),
-                                                *DEPTH_MAX,
+                                                *DEPTH_FAIL,
                                             );
                                             unsafe {
                                                 if let Some(depth_pass) = (*fuwa.0)
