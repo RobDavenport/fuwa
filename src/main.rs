@@ -136,8 +136,7 @@ fn main() -> Result<(), Error> {
         match event {
             Event::RedrawRequested(_) => {
                 // Draw the current frame
-                fuwa.clear();
-                fuwa.clear_depth_buffer();
+                fuwa.clear_all();
 
                 let rotation = Mat3::from_rotation_x(rot_x)
                     * Mat3::from_rotation_y(rot_y)

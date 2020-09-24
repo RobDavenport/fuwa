@@ -108,6 +108,24 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             })
     }
 
+    pub fn clear_all(&mut self) {
+        let pixels_iter = self.pixels.get_frame().par_chunks_mut(4);
+        let depth_iter = self.depth_buffer.depth_buffer.par_iter_mut();
+
+        pixels_iter
+            .zip(depth_iter)
+            .for_each(|(pixel_chunk, depth)| {
+                if *depth != f32::NEG_INFINITY {
+                    *depth = f32::NEG_INFINITY;
+                }
+
+                let pixel = bytemuck::from_bytes_mut::<u32>(pixel_chunk);
+                if *pixel != 0 {
+                    *pixel = 0;
+                }
+            })
+    }
+
     pub fn clear(&mut self) {
         self.pixels
             .get_frame()
@@ -139,27 +157,24 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     pub fn render<F: FSInput>(&mut self, shader: &impl FragmentShader<F>, shader_index: usize) {
         unsafe {
             let self_ptr = self.get_self_ptr();
-            if let Some(mut slab) = (*self_ptr.0).fragment_slab_map.remove_slab::<F>() {
-                (*self_ptr.0)
-                    .fragment_buffer
-                    .get_fragments_view_mut()
-                    .par_iter_mut()
-                    .enumerate()
-                    .for_each(|(index, fragment)| {
-                        if let Some(frag) = fragment {
-                            if frag.shader_index == shader_index {
-                                let color = shader.fragment_shader_fn(
-                                    slab.take(frag.fragment_key).unwrap(),
-                                    &(*self_ptr.0).uniforms,
-                                );
-
-                                (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                                *fragment = None;
-                            }
+            let slab = (*self_ptr.0).fragment_slab_map.get_mut_slab::<F>();
+            (*self_ptr.0)
+                .fragment_buffer
+                .get_fragments_view_mut()
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(index, fragment)| {
+                    if let Some(frag) = fragment {
+                        if frag.shader_index == shader_index {
+                            let color = shader.fragment_shader_fn(
+                                slab.take(frag.fragment_key).unwrap(),
+                                &(*self_ptr.0).uniforms,
+                            );
+                            (*self_ptr.0).set_pixel_by_index(index << 2, &color);
+                            *fragment = None;
                         }
-                    });
-                self.fragment_slab_map.insert_slab(slab);
-            }
+                    }
+                });
         }
     }
 

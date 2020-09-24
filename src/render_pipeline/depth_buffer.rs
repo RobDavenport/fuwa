@@ -14,9 +14,12 @@ impl DepthBuffer {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.depth_buffer.par_iter_mut().for_each(|x| {
-            *x = f32::NEG_INFINITY;
-        });
+        self.depth_buffer
+            .par_iter_mut()
+            .filter(|x| **x != f32::NEG_INFINITY)
+            .for_each(|x| {
+                *x = f32::NEG_INFINITY;
+            });
     }
 
     pub fn try_set_depth(&mut self, index: usize, depth: f32) -> bool {

@@ -1,5 +1,5 @@
 use crate::FSInput;
-use sharded_slab::{Config, Slab};
+use sharded_slab::Slab;
 use type_map::TypeMap;
 
 pub(crate) struct FragmentBufferNew {
