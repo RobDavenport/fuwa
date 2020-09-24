@@ -31,6 +31,7 @@ https://www.digipen.edu/sites/default/files/public/docs/theses/salem-haykal-digi
 
 TODO:
 1. Add geometric clipping algorithm for triangles.
+1. Better parallelize tasks by splitting them into bigger chunks (triangles etc)
 1. Fix potential crashes when moving too close to objects (draw out of bounds)
 1. Store/Upload data into a "device" (like WGPU) inside of Fuwa class?
 1. Add model loader

@@ -1,4 +1,3 @@
-use super::shaders::FragmentShader;
 use super::Triangle;
 use crate::{rasterization::rasterizer, rasterization::SlabPtr, Fuwa, IndexedVertexList};
 use crate::{FSInput, VSInput, VertexShader};

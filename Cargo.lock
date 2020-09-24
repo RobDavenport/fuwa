@@ -637,6 +637,7 @@ dependencies = [
  "glam",
  "image",
  "lazy_static",
+ "num_cpus",
  "once_cell",
  "optick",
  "parking_lot 0.11.0",

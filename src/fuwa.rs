@@ -26,7 +26,7 @@ pub struct Fuwa<W: HasRawWindowHandle> {
     pub(crate) fragment_buffer: FragmentBuffer,
     pub fragment_slab_map: FragmentSlabMap,
     pub(crate) uniforms: Uniforms,
-    pub raster_par_count: usize,
+    pub(crate) thread_count: usize, //Do i need this?
 }
 
 lazy_static! {
@@ -56,7 +56,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     pub fn new(
         width: u32,
         height: u32,
-        raster_par_count: usize,
+        thread_count: usize,
         vsync: bool,
         high_performance: Option<bool>,
         window: &W,
@@ -66,7 +66,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             height,
             pixel_count: width * height,
             depth_buffer: DepthBuffer::new(width, height),
-            raster_par_count,
+            thread_count,
             x_factor: width as f32 * 0.5,
             y_factor: height as f32 * 0.5,
             uniforms: Uniforms::new(),
@@ -108,30 +108,22 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
     }
 
     pub fn clear_all(&mut self) {
-        let pixels_iter = self.pixels.get_frame().par_chunks_mut(4);
-        let depth_iter = self.depth_buffer.depth_buffer.par_iter_mut();
-
-        pixels_iter
-            .zip(depth_iter)
-            .for_each(|(pixel_chunk, depth)| {
-                if *depth != f32::NEG_INFINITY {
-                    *depth = f32::NEG_INFINITY;
-                }
-
-                let pixel = bytemuck::from_bytes_mut::<u32>(pixel_chunk);
-                if *pixel != 0 {
-                    *pixel = 0;
-                }
-            })
+        self.clear();
+        self.depth_buffer.clear();
     }
 
     pub fn clear(&mut self) {
-        self.pixels
-            .get_frame()
-            .par_iter_mut()
-            .for_each(|pixel_chunk| {
-                *pixel_chunk = 0;
-            })
+        //TODO: Is this faster than parallel?
+        unsafe {
+            let target = self.pixels.get_frame().as_mut_ptr();
+            let len = self.pixels.get_frame().len();
+            std::ptr::write_bytes(target, 0, len);
+        }
+        // let frame = self.pixels.get_frame();
+        // let step = frame.len() / self.thread_count;
+        // frame.par_chunks_mut(step).for_each(|pixel_chunk| unsafe {
+        //     std::ptr::write_bytes(pixel_chunk.as_mut_ptr(), 0, pixel_chunk.len());
+        // })
     }
 
     pub fn clear_depth_buffer(&mut self) {
@@ -181,6 +173,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         self.pixels.render()
     }
 
+    //TODO: Use 0 for depth min sice we do 1/z
     pub fn render_depth_buffer(&mut self) -> Result<(), Error> {
         let pixel_iter = self.pixels.get_frame().par_chunks_exact_mut(4);
         let mut depth_max = f32::NEG_INFINITY;

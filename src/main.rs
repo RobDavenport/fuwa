@@ -35,7 +35,7 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, true, None, &window);
+    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, num_cpus::get(), true, None, &window);
 
     let mut scene = Scene::TexturedCube;
 

@@ -1,5 +1,5 @@
 use super::{RasterBoundingBox, SlabPtr};
-use crate::{FSInput, FragmentShader};
+use crate::FSInput;
 use crate::{FuwaPtr, Triangle};
 use bytemuck::cast;
 use glam::*;

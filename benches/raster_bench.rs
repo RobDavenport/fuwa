@@ -23,7 +23,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             .unwrap()
     };
 
-    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, 4, false, None, &window);
+    let mut fuwa = Fuwa::new(WIDTH, HEIGHT, num_cpus::get(), false, None, &window);
 
     let frag_shader = ColorBlend::new();
     let mut vert_shader = BasicVertexShader::new();

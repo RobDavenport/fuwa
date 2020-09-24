@@ -1,6 +1,7 @@
 use bytemuck::cast;
-use rayon::prelude::*;
+//use rayon::prelude::*;
 use wide::f32x8;
+
 pub(crate) struct DepthBuffer {
     pub(crate) depth_buffer: Vec<f32>,
     //TODO: Implement depth functions like GREATER THAN or LESS THAN
@@ -14,12 +15,25 @@ impl DepthBuffer {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.depth_buffer
-            .par_iter_mut()
-            .filter(|x| **x != f32::NEG_INFINITY)
-            .for_each(|x| {
-                *x = f32::NEG_INFINITY;
-            });
+        //TODO: Is this safe/faster than parallel?
+        unsafe {
+            let target = self.depth_buffer.as_mut_ptr();
+            let len = self.depth_buffer.len();
+            std::ptr::write_bytes(target, 0, len)
+        }
+        //let step = self.depth_buffer.len() / self.thread_count;
+        //self.depth_buffer
+        // .par_chunks_mut(step)
+        // .for_each(|row| unsafe {
+        //     //TODO: Is this safe? investigate
+        //     std::ptr::write_bytes(row.as_mut_ptr(), 0, row.len());
+
+        //     //for pixel in row.into_iter() {
+        //     //if *pixel != f32::NEG_INFINITY {
+        //     //    std::ptr::write(pixel, f32::NEG_INFINITY);
+        //     //}
+        //     //}
+        // });
     }
 
     pub fn try_set_depth(&mut self, index: usize, depth: f32) -> bool {
