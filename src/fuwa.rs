@@ -163,6 +163,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
                 .get_fragments_view_mut()
                 .par_iter_mut()
                 .enumerate()
+                .filter(|(_, fragment)| fragment.is_some())
                 .for_each(|(index, fragment)| {
                     if let Some(frag) = fragment {
                         if frag.shader_index == shader_index {
