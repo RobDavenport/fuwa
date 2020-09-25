@@ -25,29 +25,25 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let mut fuwa = Fuwa::new(WIDTH, HEIGHT, num_cpus::get(), false, None, &window);
 
-    let frag_shader = ColorBlend::new();
     let mut vert_shader = BasicVertexShader::new();
 
-    let colored_cube = colored_cube(1.);
-    let cube_indices = cube_indices();
+    let (model_data, model_indices, model_texture_handle) = fuwa.load_viking_room();
+    let model_shader = Textured::new(model_texture_handle);
 
-    let translation = vec3a(0., 0., 2.0);
-
-    let black = fuwa::colors::BLACK;
-    let white = fuwa::colors::WHITE;
+    let translation = vec3a(0., 0., 35.0);
 
     let rotation = Mat3::from_cols(
-        vec3(0.69670665, -0.40504977, -0.59205955),
-        vec3(0.0, 0.8253356, -0.5646425),
-        vec3(0.71735615, 0.39339018, 0.5750168),
+        vec3(-0.91775537, -0.27071026, -0.2905874),
+        vec3(0.0, 0.7316888, -0.68163884),
+        vec3(0.39714617, -0.6255777, -0.6715113),
     );
 
-    let mut active_data = colored_cube.clone();
+    let mut active_data = model_data.clone();
     vert_shader.bind_translation(translation);
     vert_shader.bind_rotation(rotation);
 
     let active_model = IndexedVertexList {
-        index_list: &cube_indices,
+        index_list: &model_indices,
         raw_vertex_list: &mut active_data,
     };
 
@@ -66,7 +62,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     black_box(&active_model),
                 );
 
-                fuwa.render(black_box(&frag_shader), black_box(0));
+                fuwa.render(black_box(&model_shader), black_box(0));
                 fuwa.present();
 
                 total += end;
@@ -90,7 +86,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 );
                 let end = start.elapsed();
 
-                fuwa.render(black_box(&frag_shader), black_box(0));
+                fuwa.render(black_box(&model_shader), black_box(0));
                 fuwa.present();
 
                 total += end;
@@ -105,16 +101,17 @@ fn criterion_benchmark(c: &mut Criterion) {
             for _ in 0..iters {
                 fuwa.clear_all();
 
-                let start = Instant::now();
                 pipeline::draw(
                     black_box(&mut fuwa),
                     black_box(&vert_shader),
                     black_box(0),
                     black_box(&active_model),
                 );
-                let end = start.elapsed();
 
-                fuwa.render(black_box(&frag_shader), black_box(0));
+                let start = Instant::now();
+                fuwa.render(black_box(&model_shader), black_box(0));
+                let end = start.elapsed();
+                
                 fuwa.present();
 
                 total += end;
@@ -136,7 +133,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     black_box(&active_model),
                 );
 
-                fuwa.render(black_box(&frag_shader), black_box(0));
+                fuwa.render(black_box(&model_shader), black_box(0));
 
                 let start = Instant::now();
                 fuwa.present();
@@ -159,7 +156,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 black_box(&active_model),
             );
 
-            fuwa.render(black_box(&frag_shader), black_box(0));
+            fuwa.render(black_box(&model_shader), black_box(0));
             fuwa.present();
         });
     });
