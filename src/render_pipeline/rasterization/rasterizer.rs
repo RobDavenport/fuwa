@@ -5,7 +5,8 @@ use bytemuck::cast;
 use glam::*;
 use lazy_static::lazy_static;
 use raw_window_handle::HasRawWindowHandle;
-use rayon::prelude::*;
+//use rayon::prelude::*;
+use smallvec::SmallVec;
 use wide::{f32x4, f32x8};
 
 lazy_static! {
@@ -28,324 +29,151 @@ pub(crate) fn triangle<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     let points2d = triangle.get_points_as_vec2();
     let bb = unsafe { (*fuwa.0).calculate_raster_bb(&points2d) };
 
-    rasterize_triangle_blocks(fuwa, triangle, fs_index, bb, slab_ptr)
+    rasterize_triangle(fuwa, triangle, fs_index, bb, slab_ptr)
 }
 
-fn rasterize_triangle_blocks<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
+fn rasterize_triangle<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
     fuwa: FuwaPtr<W>,
     triangle: &Triangle<F>,
     fs_index: usize,
     bb: RasterBoundingBox,
     slab_ptr: SlabPtr<F>,
 ) {
-    //optick::event!();
-    let points = triangle.get_points_as_vec3a();
+    //Triangle Setup
+    let [v0, v1, v2] = triangle.get_points_as_vec3a();
+    let origin = vec3a(bb.min_x(), bb.min_y(), 0.);
 
-    //Deltas - Number indicates the edge
-    let dx01 = points[0].x() - points[1].x();
-    let dx12 = points[1].x() - points[2].x();
-    let dx20 = points[2].x() - points[0].x();
-    let dy01 = points[0].y() - points[1].y();
-    let dy12 = points[1].y() - points[2].y();
-    let dy20 = points[2].y() - points[0].y();
+    let (mut w0_row, e12, a0) = prepare_edge(&v1, &v2, &origin);
+    let (mut w1_row, e20, a1) = prepare_edge(&v2, &v0, &origin);
+    let (mut w2_row, e01, a2) = prepare_edge(&v0, &v1, &origin);
 
-    //Constants - Number indicates the 'opposite edge'
-    let c0 = dy12 * points[1].x() - dx12 * points[1].y();
-    let c1 = dy20 * points[2].x() - dx20 * points[2].y();
-    let c2 = dy01 * points[0].x() - dx01 * points[0].y();
+    let one_over_area = (a0 + a1 + a2).recip();
+    let z0_fast = v0.z();
+    let z1_fast = (v1.z() - z0_fast) * one_over_area;
+    let z2_fast = (v2.z() - z0_fast) * one_over_area;
+
+    let f0_fast = triangle.vs_input[0];
+    let f1_fast = (triangle.vs_input[1] - f0_fast) * one_over_area;
+    let f2_fast = (triangle.vs_input[2] - f0_fast) * one_over_area;
 
     let [min_x, min_y, max_x, max_y] = bb.prepare();
-    //Start traversing inner blocks
-    //This can be done in parallel
-    (min_y..max_y)
-        .into_par_iter()
-        .step_by(OUTER_BLOCK_HEIGHT as usize)
-        .for_each(|block_y0| {
-            //optick::register_thread("raster_tri_row");
-            //Simple easy out per row
-            let mut row_already_draw = false;
 
-            for block_x0 in (min_x..max_x).step_by(OUTER_BLOCK_WIDTH as usize) {
-                //Get block coordinates
-                let block_x1 = block_x0 + OUTER_BLOCK_WIDTH;
-                let block_y1 = block_y0 + OUTER_BLOCK_HEIGHT;
+    //Start rasterization
+    for pixel_y in (min_y..max_y).step_by(INNER_STAMP_HEIGHT as usize) {
+        let mut already_drew_row = false;
+        //Set barycentric coordinates at start of row
+        let mut w0 = w0_row;
+        let mut w1 = w1_row;
+        let mut w2 = w2_row;
 
-                //TODO: Optimize this with a single edge check?
-                //Evaluate half-space for block edges
-                let y_vec = f32x4::from([
-                    block_y0 as f32,
-                    block_y0 as f32,
-                    block_y1 as f32,
-                    block_y1 as f32,
-                ]);
-                let x_vec = f32x4::from([
-                    block_x0 as f32,
-                    block_x1 as f32,
-                    block_x0 as f32,
-                    block_x1 as f32,
-                ]);
-                let a_set = c0 + (dx12 * y_vec) - (dy12 * x_vec);
-                let b_set = c1 + (dx20 * y_vec) - (dy20 * x_vec);
-                let c_set = c2 + (dx01 * y_vec) - (dy01 * x_vec);
+        for pixel_x in (min_x..max_x).step_by(INNER_STAMP_WIDTH as usize) {
+            let inside_triangle =
+                w0.cmp_ge(f32x8::ZERO) & w1.cmp_ge(f32x8::ZERO) & w2.cmp_ge(f32x8::ZERO);
 
-                use BlockEdgeResult::*;
-                match (
-                    BlockEdgeResult::check(&a_set),
-                    BlockEdgeResult::check(&b_set),
-                    BlockEdgeResult::check(&c_set),
-                ) {
-                    //Just skip any blocks completely outside
-                    (Outside, _, _) | (_, Outside, _) | (_, _, Outside) => {
-                        if row_already_draw {
-                            return;
-                        }
-                    }
-
-                    //TODO: SIMD-ify this block next
-                    //Currently it's faster to just ignore this early out
-                    //We can draw this block in one go
-                    // (Inside, Inside, Inside) => {
-                    //     row_already_draw = true;
-
-                    //     let a00 = cast::<_, [f32; 4]>(a_set)[0];
-                    //     let b00 = cast::<_, [f32; 4]>(b_set)[0];
-                    //     let c00 = cast::<_, [f32; 4]>(c_set)[0];
-
-                    //     let depths = get_interpolated_z_block(
-                    //         triangle,
-                    //         (a00, b00, c00),
-                    //         (dx12, dx20, dx01),
-                    //         (dy12, dy20, dy01),
-                    //         OUTER_BLOCK_WIDTH,
-                    //         OUTER_BLOCK_HEIGHT,
-                    //     );
-
-                    //     unsafe {
-                    //         if let Some(depth_pass) = (*fuwa.0).try_set_depth_block(
-                    //             (block_x0, block_y0),
-                    //             (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                    //             depths,
-                    //         ) {
-                    //             let interpolated_verts = get_interpolated_triangle_block(
-                    //                 triangle,
-                    //                 (a00, b00, c00),
-                    //                 (dx12, dx20, dx01),
-                    //                 (dy12, dy20, dy01),
-                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                    //                 &depth_pass,
-                    //             );
-                    //             (*fuwa.0).set_fragments_block(
-                    //                 (block_x0, block_y0),
-                    //                 (OUTER_BLOCK_WIDTH, OUTER_BLOCK_HEIGHT),
-                    //                 &depth_pass,
-                    //                 interpolated_verts,
-                    //                 fs_index,
-                    //                 slab_ptr,
-                    //             )
-                    //         }
-                    //     }
-                    // }
-                    _ => {
-                        row_already_draw = true;
-                        //We have a partially covered block, so we
-                        //have to draw the block pixel-by-pixel
-                        //These are constants for our new starting point at bx0, by0
-                        //and were calculated previously
-                        let mut cy0 = c0 + (dx12 * (block_y0 as f32 + *STAMP_OFFSET_Y))
-                            - (dy12 * (block_x0 as f32 + *STAMP_OFFSET_X));
-                        let mut cy1 = c1 + (dx20 * (block_y0 as f32 + *STAMP_OFFSET_Y))
-                            - (dy20 * (block_x0 as f32 + *STAMP_OFFSET_X));
-                        let mut cy2 = c2 + (dx01 * (block_y0 as f32 + *STAMP_OFFSET_Y))
-                            - (dy01 * (block_x0 as f32 + *STAMP_OFFSET_X));
-
-                        let one_step_x0 = f32x8::splat(dy12 * INNER_STAMP_WIDTH as f32);
-                        let one_step_x1 = f32x8::splat(dy20 * INNER_STAMP_WIDTH as f32);
-                        let one_step_x2 = f32x8::splat(dy01 * INNER_STAMP_WIDTH as f32);
-
-                        let one_step_y0 = f32x8::splat(dx12 * INNER_STAMP_HEIGHT as f32);
-                        let one_step_y1 = f32x8::splat(dx20 * INNER_STAMP_HEIGHT as f32);
-                        let one_step_y2 = f32x8::splat(dx01 * INNER_STAMP_HEIGHT as f32);
-
-                        (block_y0..block_y1)
-                            .step_by(INNER_STAMP_HEIGHT as usize)
-                            .for_each(|pixel_y| {
-                                //Reset values for horizontal traversal
-                                let mut cx0 = cy0;
-                                let mut cx1 = cy1;
-                                let mut cx2 = cy2;
-
-                                (block_x0..block_x1)
-                                    .step_by(INNER_STAMP_WIDTH as usize)
-                                    .for_each(|pixel_x| {
-                                        let tri_mask = cx0.cmp_ge(f32x8::ZERO)
-                                            & cx1.cmp_ge(f32x8::ZERO)
-                                            & cx2.cmp_ge(f32x8::ZERO);
-                                        if tri_mask.any() {
-                                            let pixel_zs = tri_mask.blend(
-                                                get_interpolated_z_simd(
-                                                    &triangle, &cx0, &cx1, &cx2,
-                                                ),
-                                                *DEPTH_FAIL,
-                                            );
-                                            unsafe {
-                                                if let Some(depth_pass) = (*fuwa.0)
-                                                    .try_set_depth_simd(pixel_x, pixel_y, &pixel_zs)
-                                                {
-                                                    let interpolants = interpolate_triangle_simd(
-                                                        &triangle, &cx0, &cx1, &cx2, pixel_zs,
-                                                    );
-                                                    (*fuwa.0).set_fragments_simd(
-                                                        pixel_x,
-                                                        pixel_y,
-                                                        interpolants,
-                                                        depth_pass,
-                                                        fs_index,
-                                                        slab_ptr,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        cx0 -= one_step_x0;
-                                        cx1 -= one_step_x1;
-                                        cx2 -= one_step_x2;
-                                    });
-                                cy0 += one_step_y0;
-                                cy1 += one_step_y1;
-                                cy2 += one_step_y2;
-                            })
+            if inside_triangle.any() {
+                unsafe {
+                    let depths = z0_fast + (w1 * z1_fast) + (w2 * z2_fast);
+                    let pass_depths = inside_triangle.blend(depths, *DEPTH_FAIL);
+                    already_drew_row = true;
+                    if let Some(depth_mask) =
+                        (*fuwa.0).try_set_depth_simd(pixel_x, pixel_y, &pass_depths)
+                    {
+                        //TODO: Interpolate the rest
+                        let interp = interpolate_triangle_simd(
+                            &w1, &w2, &f0_fast, &f1_fast, &f2_fast, depths,
+                        );
+                        (*fuwa.0).set_fragments_simd(
+                            pixel_x, pixel_y, interp, depth_mask, fs_index, slab_ptr,
+                        );
                     }
                 }
+            } else {
+                if already_drew_row {
+                    break;
+                }
             }
-        });
-}
-enum BlockEdgeResult {
-    Outside,
-    Inside,
-    Partial,
-}
 
-impl BlockEdgeResult {
-    fn check(edge: &f32x4) -> Self {
-        match cast::<_, [i32; 4]>(edge.cmp_ge(f32x4::ZERO)) {
-            [-1, -1, -1, -1] => Self::Inside,
-            [0, 0, 0, 0] => Self::Outside,
-            _ => Self::Partial,
+            //One step right
+            w0 += e12.one_step_x;
+            w1 += e20.one_step_x;
+            w2 += e01.one_step_x;
         }
+
+        //One row step
+        w0_row += e12.one_step_y;
+        w1_row += e20.one_step_y;
+        w2_row += e01.one_step_y;
     }
 }
 
-fn get_interp_values(w0: f32, w1: f32, w2: f32) -> (f32, f32) {
-    let weight_sum = w0 + w1 + w2;
-    let l1 = w1 / weight_sum;
-    let l2 = w2 / weight_sum;
-    (l1, l2)
+struct EdgeStepper {
+    one_step_x: f32x8,
+    one_step_y: f32x8,
 }
 
-fn get_interp_values_simd(w0: &f32x8, w1: &f32x8, w2: &f32x8) -> (f32x8, f32x8) {
-    let weight_sum = *w0 + *w1 + *w2;
-    let l1 = *w1 / weight_sum;
-    let l2 = *w2 / weight_sum;
-    (l1, l2)
+fn prepare_edge(v0: &Vec3A, v1: &Vec3A, origin: &Vec3A) -> (f32x8, EdgeStepper, f32) {
+    // Edge setup
+    let a = v1.y() - v0.y();
+    let b = v0.x() - v1.x();
+    let c = (v1.x() * v0.y()) - (v1.y() * v0.x());
+
+    //Calculate initial values
+    let x_start = f32x8::splat(origin.x()) + *STAMP_OFFSET_X;
+    let y_start = f32x8::splat(origin.y()) + *STAMP_OFFSET_Y;
+
+    //Actual edge value at origin
+    let values = (f32x8::splat(a) * x_start) + (f32x8::splat(b) * y_start) + f32x8::splat(c);
+
+    (
+        values,
+        EdgeStepper {
+            one_step_x: f32x8::splat(a * INNER_STAMP_WIDTH as f32),
+            one_step_y: f32x8::splat(b * INNER_STAMP_HEIGHT as f32),
+        },
+        a + b + c,
+    )
 }
 
-fn get_interpolated_z_simd<F: FSInput>(
-    triangle: &Triangle<F>,
-    w0: &f32x8,
-    w1: &f32x8,
-    w2: &f32x8,
-) -> f32x8 {
-    //optick::event!();
-
-    let (l1, l2) = get_interp_values_simd(w0, w1, w2);
-    let [z0, zs10, zs20] = triangle.get_z_diffs();
-    *z0 + (l1 * *zs10) + (l2 * *zs20)
-}
-
+//TODO: Optimize this ? Maybe add a Interpolate FN for FSInput?
 fn interpolate_triangle_simd<F: FSInput>(
-    triangle: &Triangle<F>,
-    w0: &f32x8,
     w1: &f32x8,
     w2: &f32x8,
+    f0_fast: &F,
+    f1_fast: &F,
+    f2_fast: &F,
     pixel_zs: f32x8,
-) -> [F; 8] {
-    //optick::event!();
-    let (l1, l2) = get_interp_values_simd(w0, w1, w2);
-    let [p0, sub10, sub20] = triangle.get_interpolate_diffs();
-
+) -> SmallVec<[F; 8]> {
     let pixel_zs = cast::<_, [f32; 8]>(1. / pixel_zs);
-    let l1_vec = cast::<_, [f32; 8]>(l1);
-    let l2_vec = cast::<_, [f32; 8]>(l2);
+    let w1_vec = cast::<_, [f32; 8]>(*w1);
+    let w2_vec = cast::<_, [f32; 8]>(*w2);
 
-    [
-        (*p0 + (*sub10 * l1_vec[0]) + (*sub20 * l2_vec[0])) * pixel_zs[0],
-        (*p0 + (*sub10 * l1_vec[1]) + (*sub20 * l2_vec[1])) * pixel_zs[1],
-        (*p0 + (*sub10 * l1_vec[2]) + (*sub20 * l2_vec[2])) * pixel_zs[2],
-        (*p0 + (*sub10 * l1_vec[3]) + (*sub20 * l2_vec[3])) * pixel_zs[3],
-        (*p0 + (*sub10 * l1_vec[4]) + (*sub20 * l2_vec[4])) * pixel_zs[4],
-        (*p0 + (*sub10 * l1_vec[5]) + (*sub20 * l2_vec[5])) * pixel_zs[5],
-        (*p0 + (*sub10 * l1_vec[6]) + (*sub20 * l2_vec[6])) * pixel_zs[6],
-        (*p0 + (*sub10 * l1_vec[7]) + (*sub20 * l2_vec[7])) * pixel_zs[7],
-    ]
-}
-
-fn get_interpolated_z_block<F: FSInput>(
-    triangle: &Triangle<F>,
-    w00: (f32, f32, f32),
-    dx: (f32, f32, f32),
-    dy: (f32, f32, f32),
-    width: u32,
-    height: u32,
-) -> Vec<f32> {
-    //optick::event!();
-    let [z0, zs10, zs20] = triangle.get_z_diffs();
-
-    let mut left_interpolator = Vec3A::from(w00);
-    let step_x = Vec3A::from(dy);
-    let step_y = Vec3A::from(dx);
-
-    let mut out = Vec::with_capacity((width * height) as usize);
-    for _ in 0..height {
-        let mut x_interpolator = left_interpolator;
-        for _ in 0..width {
-            let (l1, l2) =
-                get_interp_values(x_interpolator[0], x_interpolator[1], x_interpolator[2]);
-            out.push(z0 + (l1 * zs10) + (l2 * zs20));
-            x_interpolator -= step_x;
-        }
-        left_interpolator += step_y;
+    let mut output = SmallVec::<[F; 8]>::new();
+    for i in 0..8 {
+        output.push((*f0_fast + (*f1_fast * w1_vec[i]) + (*f2_fast * w2_vec[i])) * pixel_zs[i]);
     }
-    out
+    output
 }
 
-//TODO: Perf this
-fn get_interpolated_triangle_block<F: FSInput>(
-    triangle: &Triangle<F>,
-    w00: (f32, f32, f32),
-    dx: (f32, f32, f32),
-    dy: (f32, f32, f32),
-    (width, height): (u32, u32),
-    depth_pass: &[Option<f32>],
-) -> Vec<F> {
-    let mut left_interpolator = Vec3A::from(w00);
-    let step_x = Vec3A::from(dy);
-    let step_y = Vec3A::from(dx);
-    let mut counter: usize = 0;
-    let [p0s, sub10, sub20] = triangle.get_interpolate_diffs();
+//  Traverse outer blocks
+//  Get barycentric coordinate for block corner
+//    Match (check(v0), check(v1), check(v2)) {
+//        (Outside, _, _) | (_, Outside, _) | (_, _, Outside) => We can early out,
+//        (Inside, Inside, Inside) => Fast Rasterize Whole Block,
+//        _ => Have to go pixel_by_pixel,
+//    }
 
-    let mut out = Vec::with_capacity((width * height) as usize);
-    for _ in 0..height {
-        let mut x_interpolator = left_interpolator;
-        for _ in 0..width {
-            if let Some(pixel_depth) = depth_pass[counter] {
-                let pixel_depth = pixel_depth.recip();
-                let (l1, l2) =
-                    get_interp_values(x_interpolator[0], x_interpolator[1], x_interpolator[2]);
-                out.push((*p0s + (*sub10 * l1) + (*sub20 * l2)) * pixel_depth);
-            }
-            x_interpolator -= step_x;
-            counter += 1;
-        }
-        left_interpolator += step_y;
-    }
-    out
-}
+// enum BlockEdgeResult {
+//     Outside,
+//     Inside,
+//     Partial,
+// }
+
+// impl BlockEdgeResult {
+//     fn check(edge: &f32x4) -> Self {
+//         match cast::<_, [i32; 4]>(edge.cmp_ge(f32x4::ZERO)) {
+//             [-1, -1, -1, -1] => Self::Inside,
+//             [0, 0, 0, 0] => Self::Outside,
+//             _ => Self::Partial,
+//         }
+//     }
+// }

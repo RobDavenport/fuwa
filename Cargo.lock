@@ -646,6 +646,7 @@ dependencies = [
  "rayon",
  "sharded-slab",
  "slab",
+ "smallvec",
  "type-map",
  "wide 0.5.5",
  "winit",

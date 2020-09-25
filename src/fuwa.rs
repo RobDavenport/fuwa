@@ -12,6 +12,7 @@ use pixels::wgpu::{PowerPreference, RequestAdapterOptions};
 use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture};
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
+use smallvec::SmallVec;
 use std::marker::{Send, Sync};
 use wide::f32x8;
 
@@ -149,21 +150,24 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         unsafe {
             let self_ptr = self.get_self_ptr();
             let slab = (*self_ptr.0).fragment_slab_map.get_mut_slab::<F>();
+            let width = self.width as usize;
             (*self_ptr.0)
                 .fragment_buffer
                 .get_fragments_view_mut()
-                .par_iter_mut()
+                .par_chunks_mut(width)
                 .enumerate()
-                .filter(|(_index, fragment)| fragment.is_some())
-                .for_each(|(index, fragment)| {
-                    let frag = fragment.as_ref().unwrap();
-                    if frag.shader_index == shader_index {
-                        let color = shader.fragment_shader_fn(
-                            slab.take(frag.fragment_key).unwrap(),
-                            &(*self_ptr.0).uniforms,
-                        );
-                        (*self_ptr.0).set_pixel_by_index(index << 2, &color);
-                        *fragment = None;
+                .for_each(|(y, fragments)| {
+                    for (x, frag_test) in fragments.into_iter().enumerate() {
+                        if let Some(frag) = frag_test {
+                            if frag.shader_index == shader_index {
+                                let color = shader.fragment_shader_fn(
+                                    slab.take(frag.fragment_key).unwrap(),
+                                    &(*self_ptr.0).uniforms,
+                                );
+                                (*self_ptr.0).set_pixel_by_index((x + y * width) << 2, &color);
+                                *frag_test = None;
+                            }
+                        }
                     }
                 });
         }
@@ -387,7 +391,7 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
         &mut self,
         pixel_x: u32,
         pixel_y: u32,
-        interp: [F; 8],
+        interp: SmallVec<[F; 8]>,
         depth_pass: f32x8,
         fs_index: usize,
         slab_ptr: SlabPtr<F>,
