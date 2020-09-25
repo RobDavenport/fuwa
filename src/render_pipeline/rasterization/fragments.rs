@@ -48,6 +48,10 @@ impl FragmentSlabMap {
         self.slab_map.get_mut::<Slab<F>>().unwrap()
     }
 
+    pub fn get_slab<F: FSInput + 'static>(&self) -> &Slab<F> {
+        self.slab_map.get::<Slab<F>>().unwrap()
+    }
+
     pub(crate) fn remove_slab<F: FSInput + 'static>(&mut self) -> Option<Slab<F>> {
         self.slab_map.remove::<Slab<F>>()
     }

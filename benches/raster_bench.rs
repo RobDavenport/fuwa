@@ -111,7 +111,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 let start = Instant::now();
                 fuwa.render(black_box(&model_shader), black_box(0));
                 let end = start.elapsed();
-                
+
                 fuwa.present();
 
                 total += end;
@@ -120,46 +120,46 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
     });
 
-    c.bench_function("present_scene", |b| {
-        b.iter_custom(|iters| {
-            let mut total = Duration::default();
-            for _ in 0..iters {
-                fuwa.clear_all();
+    // c.bench_function("present_scene", |b| {
+    //     b.iter_custom(|iters| {
+    //         let mut total = Duration::default();
+    //         for _ in 0..iters {
+    //             fuwa.clear_all();
 
-                pipeline::draw(
-                    black_box(&mut fuwa),
-                    black_box(&vert_shader),
-                    black_box(0),
-                    black_box(&active_model),
-                );
+    //             pipeline::draw(
+    //                 black_box(&mut fuwa),
+    //                 black_box(&vert_shader),
+    //                 black_box(0),
+    //                 black_box(&active_model),
+    //             );
 
-                fuwa.render(black_box(&model_shader), black_box(0));
+    //             fuwa.render(black_box(&model_shader), black_box(0));
 
-                let start = Instant::now();
-                fuwa.present();
-                let end = start.elapsed();
+    //             let start = Instant::now();
+    //             fuwa.present();
+    //             let end = start.elapsed();
 
-                total += end;
-            }
-            total
-        });
-    });
+    //             total += end;
+    //         }
+    //         total
+    //     });
+    // });
 
-    c.bench_function("full_render_loop", |b| {
-        b.iter(|| {
-            fuwa.clear_all();
+    // c.bench_function("full_render_loop", |b| {
+    //     b.iter(|| {
+    //         fuwa.clear_all();
 
-            pipeline::draw(
-                black_box(&mut fuwa),
-                black_box(&vert_shader),
-                black_box(0),
-                black_box(&active_model),
-            );
+    //         pipeline::draw(
+    //             black_box(&mut fuwa),
+    //             black_box(&vert_shader),
+    //             black_box(0),
+    //             black_box(&active_model),
+    //         );
 
-            fuwa.render(black_box(&model_shader), black_box(0));
-            fuwa.present();
-        });
-    });
+    //         fuwa.render(black_box(&model_shader), black_box(0));
+    //         fuwa.present();
+    //     });
+    // });
 }
 
 criterion_group!(benches, criterion_benchmark);

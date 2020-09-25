@@ -16,6 +16,8 @@ use smallvec::SmallVec;
 use std::marker::{Send, Sync};
 use wide::f32x8;
 
+const ROWS_PER_THREAD: usize = 1;
+
 pub struct Fuwa<W: HasRawWindowHandle> {
     pub width: u32,
     pub height: u32,
@@ -151,20 +153,22 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             let self_ptr = self.get_self_ptr();
             let slab = (*self_ptr.0).fragment_slab_map.get_mut_slab::<F>();
             let width = self.width as usize;
+            let pixels_per_job = width * ROWS_PER_THREAD;
             (*self_ptr.0)
                 .fragment_buffer
                 .get_fragments_view_mut()
-                .par_chunks_mut(width)
+                .par_chunks_mut(pixels_per_job)
                 .enumerate()
-                .for_each(|(y, fragments)| {
-                    for (x, frag_test) in fragments.into_iter().enumerate() {
+                .for_each(|(job_id, fragments)| {
+                    let start_pixel = job_id * ROWS_PER_THREAD * width;
+                    for (i, frag_test) in fragments.into_iter().enumerate() {
                         if let Some(frag) = frag_test {
                             if frag.shader_index == shader_index {
                                 let color = shader.fragment_shader_fn(
                                     slab.take(frag.fragment_key).unwrap(),
                                     &(*self_ptr.0).uniforms,
                                 );
-                                (*self_ptr.0).set_pixel_by_index((x + y * width) << 2, &color);
+                                (*self_ptr.0).set_pixel_by_index((start_pixel + i) << 2, &color);
                                 *frag_test = None;
                             }
                         }

@@ -78,13 +78,20 @@ fn rasterize_triangle<F: FSInput, W: HasRawWindowHandle + Send + Sync>(
                     if let Some(depth_mask) =
                         (*fuwa.0).try_set_depth_simd(pixel_x, pixel_y, &pass_depths)
                     {
-                        //TODO: Interpolate the rest
-                        let interp = interpolate_triangle_simd(
-                            &w1, &w2, &f0_fast, &f1_fast, &f2_fast, depths,
-                        );
-                        (*fuwa.0).set_fragments_simd(
-                            pixel_x, pixel_y, interp, depth_mask, fs_index, slab_ptr,
-                        );
+                        let render_mask = depth_mask.move_mask();
+                        let z_recip = cast::<_, [f32; 8]>(1. / depths);
+                        let w1_vec = cast::<_, [f32; 8]>(w1);
+                        let w2_vec = cast::<_, [f32; 8]>(w2);
+
+                        for i in 0..8 {
+                            if (1 << i) & render_mask != 0 {
+                                let interped =
+                                    (f0_fast + (f1_fast * w1_vec[i]) + (f2_fast * w2_vec[i]))
+                                        * z_recip[i];
+                                let fragment_key = slab_ptr.insert_fragment(fs_index, interped);
+                                (*fuwa.0).set_fragment(pixel_x + i as u32, pixel_y, fragment_key);
+                            }
+                        }
                     }
                 }
             } else {
@@ -132,26 +139,6 @@ fn prepare_edge(v0: &Vec3A, v1: &Vec3A, origin: &Vec3A) -> (f32x8, EdgeStepper, 
         },
         a + b + c,
     )
-}
-
-//TODO: Optimize this ? Maybe add a Interpolate FN for FSInput?
-fn interpolate_triangle_simd<F: FSInput>(
-    w1: &f32x8,
-    w2: &f32x8,
-    f0_fast: &F,
-    f1_fast: &F,
-    f2_fast: &F,
-    pixel_zs: f32x8,
-) -> SmallVec<[F; 8]> {
-    let pixel_zs = cast::<_, [f32; 8]>(1. / pixel_zs);
-    let w1_vec = cast::<_, [f32; 8]>(*w1);
-    let w2_vec = cast::<_, [f32; 8]>(*w2);
-
-    let mut output = SmallVec::<[F; 8]>::new();
-    for i in 0..8 {
-        output.push((*f0_fast + (*f1_fast * w1_vec[i]) + (*f2_fast * w2_vec[i])) * pixel_zs[i]);
-    }
-    output
 }
 
 //  Traverse outer blocks

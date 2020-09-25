@@ -8,8 +8,8 @@ use glam::*;
 use raw_window_handle::HasRawWindowHandle;
 use rayon::prelude::*;
 
-const VERTICES_PER_VERTEX_SHADER_JOB: usize = 8;
-const TRIANGLES_PER_RASTER_JOB: usize = 1;
+const TRIANGLES_PER_RASTER_JOB: usize = 4;
+const VERTICES_PER_VERTEX_SHADER_JOB: usize = 16;
 
 // pub struct Pipeline<V: VSInput, F: FSInput> {
 //     pub(crate) fragment_shader: FragmentShader<F>,
