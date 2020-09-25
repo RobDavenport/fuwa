@@ -11,7 +11,7 @@ use winit_input_helper::WinitInputHelper;
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
 
-const ROT_SPEED: f32 = 0.1;
+const ROT_SPEED: f32 = 0.03;
 
 #[derive(Debug, Eq, PartialEq)]
 enum Scene {
@@ -59,10 +59,13 @@ fn main() -> Result<(), Error> {
     let plane_data = textured_plane(2.);
     let plane_indices = plane_indices();
 
+    let (model_data, model_indices, model_texture_handle) = fuwa.load_viking_room();
+    let model_shader = Textured::new(model_texture_handle);
+
     //let cube_data = textured_plane(1.);
     //let cube_indices = tri_indices();
 
-    let mut offset = Vec3A::new(0., 0., 2.0);
+    let mut offset = Vec3A::new(0., 0., 35.0);
 
     let mut rot_x = 0.0;
     let mut rot_y = 0.0;
@@ -152,14 +155,22 @@ fn main() -> Result<(), Error> {
                     raw_vertex_list: &mut plane_data.clone(),
                 };
 
+                let active_model = IndexedVertexList {
+                    index_list: &model_indices,
+                    raw_vertex_list: &mut model_data.clone(),
+                };
+
                 vertex_shader.bind_translation(offset);
                 vertex_shader.bind_rotation(rotation);
 
-                pipeline::draw(&mut fuwa, &vertex_shader, 0, &active_cube);
-                pipeline::draw(&mut fuwa, &vertex_shader, 1, &active_plane);
+                pipeline::draw(&mut fuwa, &vertex_shader, 2, &active_model);
+                fuwa.render(&model_shader, 2);
 
-                fuwa.render(&cube_shader, 0);
-                fuwa.render(&plane_shader, 1);
+                //pipeline::draw(&mut fuwa, &vertex_shader, 0, &active_cube);
+                //pipeline::draw(&mut fuwa, &vertex_shader, 1, &active_plane);
+
+                //fuwa.render(&cube_shader, 0);
+                //fuwa.render(&plane_shader, 1);
 
                 if fuwa
                     .present()
