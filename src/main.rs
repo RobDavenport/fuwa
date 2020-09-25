@@ -145,8 +145,6 @@ fn main() -> Result<(), Error> {
                     * Mat3::from_rotation_y(rot_y)
                     * Mat3::from_rotation_z(rot_z);
 
-                println!("{:?}", &rotation);
-
                 let active_cube = IndexedVertexList {
                     index_list: &cube_indices,
                     raw_vertex_list: &mut cube_data.clone(),
