@@ -11,7 +11,7 @@ use winit_input_helper::WinitInputHelper;
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
 
-const ROT_SPEED: f32 = 0.03;
+const ROT_SPEED: f32 = 0.05;
 
 #[derive(Debug, Eq, PartialEq)]
 enum Scene {
@@ -144,6 +144,8 @@ fn main() -> Result<(), Error> {
                 let rotation = Mat3::from_rotation_x(rot_x)
                     * Mat3::from_rotation_y(rot_y)
                     * Mat3::from_rotation_z(rot_z);
+
+                println!("{:?}", &rotation);
 
                 let active_cube = IndexedVertexList {
                     index_list: &cube_indices,
