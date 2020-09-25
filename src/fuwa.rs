@@ -445,4 +445,53 @@ impl<W: HasRawWindowHandle + Send + Sync> Fuwa<W> {
             data: image_data.to_vec(),
         })
     }
+
+    pub fn load_viking_room(&mut self) -> (Vec<[f32; 5]>, Vec<usize>, usize) {
+        use bytemuck::from_bytes;
+        let mut model_data = Vec::new();
+        let mut indices = Vec::new();
+
+        //POSITION, NORMAL, TEXCORD, INDICES
+        //4675, 4675, 4675, 11484
+        //vec3, vec3, vec2, u32
+        let vertices = 4675;
+
+        let raw_bytes = std::fs::read("./resources/viking_room/scene.bin").unwrap();
+        let position_bytes = &raw_bytes[(83336..83336 + 112200)];
+        let mut positions = Vec::new();
+        for (_, position) in (0..vertices).zip(position_bytes.chunks_exact(12)) {
+            positions.push(*from_bytes::<[f32; 3]>(position));
+        }
+
+        let tex_buffer = &raw_bytes[(45936..45936 + 37400)];
+        let mut texes = Vec::new();
+        for tex in tex_buffer.chunks_exact(8) {
+            let tex_coord = *from_bytes::<[f32; 2]>(&tex[0..8]);
+            texes.push(tex_coord);
+        }
+
+        for i in 0..vertices {
+            model_data.push([
+                positions[i][0],
+                positions[i][1],
+                positions[i][2],
+                texes[i][0],
+                texes[i][1],
+            ])
+        }
+
+        let indices_buffer = &raw_bytes[(0..45936)];
+        for index in indices_buffer.chunks_exact(12) {
+            let [i0, i1, i2] = *from_bytes::<[u32; 3]>(index);
+            indices.push(i0 as usize);
+            indices.push(i2 as usize);
+            indices.push(i1 as usize);
+        }
+
+        (
+            model_data,
+            indices,
+            self.load_texture("viking_room/textures/Texture1_baseColor.png".to_string()),
+        )
+    }
 }
