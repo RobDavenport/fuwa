@@ -2,6 +2,8 @@ WARNING: Fuwa is still a work in progress and is not ready for public use.
 
 A software renderer written in Rust.
 
+https://cdn.discordapp.com/attachments/118770341630705664/759036452272209920/loaded_gltf.gif
+
 Goals:
 1. Full featured graphics rendering library matching functionality of something like OpenGL or Direct X, or WebGPU.
 1. Performance suitable for real-time usage (at least as good as software rendering can be).
